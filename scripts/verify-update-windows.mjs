@@ -153,6 +153,10 @@ try {
   installStarted = true;
   await panel.getByRole('button', { name: '재시작하고 적용', exact: true }).click();
   const report = await waitFor(async () => {
+    if (panel && !panel.isClosed()) {
+      const state = await panel.evaluate(() => window.corner.getUpdateState()).catch(() => null);
+      if (state?.phase === 'error') throw new Error(`Updater rejected install: ${state.message}`);
+    }
     let value;
     try { value = JSON.parse(await fs.readFile(resultFile, 'utf8')); } catch (error) { if (error.code === 'ENOENT' || error instanceof SyntaxError) return false; throw error; }
     if (!value.ok) throw new Error(value.message || 'Windows installer failed');
@@ -184,6 +188,13 @@ try {
 } catch (error) {
   console.error(`Windows updater E2E failed: ${error.message}`);
   if (diagnostics) console.error(diagnostics.slice(-6000));
+  const updateDirectory = path.join(userData, 'updates');
+  const files = await fs.readdir(updateDirectory).catch(() => []);
+  console.error(`Updater files: ${files.join(', ')}`);
+  for (const file of files.filter((name) => name.endsWith('.log'))) {
+    const log = await fs.readFile(path.join(updateDirectory, file), 'utf8').catch(() => '');
+    if (log) console.error(`Updater helper diagnostics (${file}): ${log.slice(-6000)}`);
+  }
   if (panel && !panel.isClosed()) await panel.screenshot({ path: path.join(results, 'windows-update-failure.png') }).catch(() => {});
   throw error;
 } finally {

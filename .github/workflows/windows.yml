@@ -33,6 +33,40 @@ jobs:
         run: npm ci
       - name: Unit and integration tests
         run: npm test
+      - name: Exercise the PowerShell 5.1 installer helper before packaging
+        run: |
+          $fixture = Join-Path $env:RUNNER_TEMP 'Windows helper 한글 path'
+          New-Item -ItemType Directory -Path $fixture -Force | Out-Null
+          $transactionFile = Join-Path $fixture 'transaction.json'
+          $startedFile = Join-Path $fixture 'helper.started'
+          $resultFile = Join-Path $fixture 'last-install.json'
+          $transaction = @{
+            parentPid = 2147483647
+            installer = (Join-Path $fixture 'missing installer.exe')
+            target = (Join-Path $fixture 'unused app.exe')
+            version = '0.0.0'
+            token = ('0' * 48)
+            size = 1
+            sha256 = ('a' * 64)
+            started = $startedFile
+            ack = (Join-Path $fixture 'unused.ready')
+            result = $resultFile
+          }
+          [System.IO.File]::WriteAllText($transactionFile, ($transaction | ConvertTo-Json), [System.Text.UTF8Encoding]::new($false))
+          $powershell = Join-Path $env:SystemRoot 'System32/WindowsPowerShell/v1.0/powershell.exe'
+          $PSNativeCommandUseErrorActionPreference = $false
+          $helperFile = (Resolve-Path electron/update-windows-helper.ps1).Path
+          node -e 'const {spawnSync}=require("node:child_process"); const env={...process.env}; for(const key of Object.keys(env)) if(key.toLowerCase()==="psmodulepath") delete env[key]; const child=spawnSync(process.argv[1],["-NoLogo","-NoProfile","-NonInteractive","-ExecutionPolicy","Bypass","-File",process.argv[2],process.argv[3]],{env,stdio:"inherit"}); if(child.error) throw child.error; process.exit(child.status ?? 1);' $powershell $helperFile $transactionFile
+          $helperExitCode = $LASTEXITCODE
+          if ($helperExitCode -eq 0) { throw 'The deliberately missing installer must fail safely' }
+          if (-not (Test-Path -LiteralPath $startedFile)) { throw 'PowerShell helper did not acknowledge startup' }
+          if (-not (Test-Path -LiteralPath $resultFile)) { throw 'PowerShell helper did not write a failure result' }
+          $result = Get-Content -LiteralPath $resultFile -Raw -Encoding UTF8 | ConvertFrom-Json
+          if ($result.ok -ne $false -or $result.version -ne '0.0.0') { throw 'Unexpected helper failure result' }
+          node -e "JSON.parse(require('fs').readFileSync(process.argv[1], 'utf8')); console.log('PowerShell 5.1 helper startup and UTF-8 result: PASS')" $resultFile
+          if ($LASTEXITCODE -ne 0) { throw 'Node could not read the helper JSON result' }
+          Remove-Item -LiteralPath $fixture -Recurse -Force
+          $global:LASTEXITCODE = 0
       - name: Build Windows x64 NSIS installer
         run: npm run package:win
       - name: Build an older bootstrap for the actual update test

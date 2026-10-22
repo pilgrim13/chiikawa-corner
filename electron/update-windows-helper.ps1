@@ -6,7 +6,7 @@ $tx = Get-Content -LiteralPath $TransactionFile -Raw -Encoding UTF8 | ConvertFro
 function Save-Result([bool]$ok, [string]$message) {
   $temporary = "$($tx.result).tmp"
   $result = @{ ok = $ok; version = $tx.version; message = $message } | ConvertTo-Json -Compress
-  [System.IO.File]::WriteAllText($temporary, $result, (New-Object System.Text.UTF8Encoding($false)))
+  [System.IO.File]::WriteAllText($temporary, $result, [System.Text.UTF8Encoding]::new($false))
   Move-Item -LiteralPath $temporary -Destination $tx.result -Force
 }
 

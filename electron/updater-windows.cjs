@@ -110,14 +110,23 @@ function createWindowsUpdater({ app, config, onState, testMode = false, platform
       await fsp.writeFile(transactionFile, JSON.stringify(tx), { mode: 0o600 });
       emit({ phase: 'installing', message: '앱을 재시작해 새 버전을 설치할게요.' });
       const powershell = path.join(process.env.SystemRoot || 'C:\\Windows', 'System32', 'WindowsPowerShell', 'v1.0', 'powershell.exe');
-      const child = spawn(powershell, ['-NoLogo', '-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', helper, transactionFile], {
-        detached: true, windowsHide: true, stdio: 'ignore', env: process.env,
-      });
+      const logFile = path.join(cache, `win-helper-${token}.log`);
+      const log = await fsp.open(logFile, 'w', 0o600);
+      const helperEnv = { ...process.env };
+      // PowerShell 7 paths inherited through Node break Windows PowerShell 5.1
+      // module loading. Let 5.1 construct its own default PSModulePath.
+      for (const key of Object.keys(helperEnv)) if (key.toLowerCase() === 'psmodulepath') delete helperEnv[key];
+      let child;
+      try {
+        child = spawn(powershell, ['-NoLogo', '-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', helper, transactionFile], {
+          detached: true, windowsHide: true, stdio: ['ignore', log.fd, log.fd], env: helperEnv,
+        });
+      } finally { await log.close(); }
       let spawnError;
       child.on('error', (error) => { spawnError = error; });
       child.unref();
       for (let i = 0; i < 300 && !fs.existsSync(tx.started) && !spawnError; i++) await new Promise((resolve) => setTimeout(resolve, 50));
-      if (spawnError || !fs.existsSync(tx.started)) throw new Error('업데이트 설치를 시작하지 못했어요. 다시 시도해 주세요.');
+      if (spawnError || !fs.existsSync(tx.started)) throw new Error(`업데이트 설치를 시작하지 못했어요. 다시 시도해 주세요.${spawnError ? ` (${spawnError.code || spawnError.message})` : ''}`);
       setTimeout(() => app.quit(), 300);
       return state;
     } catch (error) { return failure(error); }
