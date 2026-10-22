@@ -99,7 +99,11 @@ function createWindowsUpdater({ app, config, onState, testMode = false, platform
       // PowerShell is a separate system executable. Keeping the old Electron
       // binary alive as a helper would prevent NSIS from replacing it.
       const helper = path.join(cache, `win-helper-${token}.ps1`);
-      await fsp.copyFile(path.join(__dirname, 'update-windows-helper.ps1'), helper);
+      // readFile understands packaged ASAR paths on Windows; copyFile can copy
+      // the archive bytes rather than the script contents on some runtimes.
+      const helperSource = await fsp.readFile(path.join(__dirname, 'update-windows-helper.ps1'));
+      if (!helperSource.toString('utf8', 0, 80).startsWith('param(')) throw new Error('설치 도우미 파일을 읽지 못했어요.');
+      await fsp.writeFile(helper, helperSource, { mode: 0o600 });
       const tx = {
         parentPid: process.pid, installer, version: manifest.version, token, target: process.execPath,
         sha256: manifest.sha256, size: manifest.size,
@@ -111,22 +115,51 @@ function createWindowsUpdater({ app, config, onState, testMode = false, platform
       emit({ phase: 'installing', message: '앱을 재시작해 새 버전을 설치할게요.' });
       const powershell = path.join(process.env.SystemRoot || 'C:\\Windows', 'System32', 'WindowsPowerShell', 'v1.0', 'powershell.exe');
       const logFile = path.join(cache, `win-helper-${token}.log`);
+      const helperOutput = path.join(cache, `win-helper-${token}.out.log`);
+      const helperErrors = path.join(cache, `win-helper-${token}.err.log`);
       const log = await fsp.open(logFile, 'w', 0o600);
       const helperEnv = { ...process.env };
       // PowerShell 7 paths inherited through Node break Windows PowerShell 5.1
       // module loading. Let 5.1 construct its own default PSModulePath.
       for (const key of Object.keys(helperEnv)) if (key.toLowerCase() === 'psmodulepath') delete helperEnv[key];
-      let child;
+      Object.assign(helperEnv, {
+        CORNER_HELPER_POWERSHELL: powershell,
+        CORNER_HELPER_SCRIPT: helper,
+        CORNER_HELPER_TRANSACTION: transactionFile,
+        CORNER_HELPER_OUTPUT: helperOutput,
+        CORNER_HELPER_ERRORS: helperErrors,
+      });
+      // Node/libuv cannot reliably start powershell.exe with detached:true on
+      // Windows. A direct non-detached child is killed with Electron's job on
+      // quit, so this short launcher starts the real helper as a grandchild.
+      // Windows file names cannot contain quotes; quote each path explicitly
+      // because Start-Process joins ArgumentList into one command line.
+      const launcher = `
+$ErrorActionPreference = 'Stop'
+try {
+  $args = '-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "' + $env:CORNER_HELPER_SCRIPT + '" "' + $env:CORNER_HELPER_TRANSACTION + '"'
+  $child = Start-Process -FilePath $env:CORNER_HELPER_POWERSHELL -ArgumentList $args -WindowStyle Hidden -RedirectStandardOutput $env:CORNER_HELPER_OUTPUT -RedirectStandardError $env:CORNER_HELPER_ERRORS -PassThru -ErrorAction Stop
+  if (-not $child -or $child.Id -le 0) { throw 'PowerShell helper was not started.' }
+} catch {
+  [Console]::Error.WriteLine($_.Exception.Message)
+  exit 1
+}`;
+      const encoded = Buffer.from(launcher, 'utf16le').toString('base64');
+      let child, spawnError, launcherExit;
       try {
-        child = spawn(powershell, ['-NoLogo', '-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', helper, transactionFile], {
-          detached: true, windowsHide: true, stdio: ['ignore', log.fd, log.fd], env: helperEnv,
+        child = spawn(powershell, ['-NoLogo', '-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-EncodedCommand', encoded], {
+          detached: false, windowsHide: true, stdio: ['ignore', log.fd, log.fd], env: helperEnv,
         });
+        child.on('error', (error) => { spawnError = error; });
+        child.on('exit', (code, signal) => { launcherExit = { code, signal }; });
       } finally { await log.close(); }
-      let spawnError;
-      child.on('error', (error) => { spawnError = error; });
       child.unref();
-      for (let i = 0; i < 300 && !fs.existsSync(tx.started) && !spawnError; i++) await new Promise((resolve) => setTimeout(resolve, 50));
-      if (spawnError || !fs.existsSync(tx.started)) throw new Error(`업데이트 설치를 시작하지 못했어요. 다시 시도해 주세요.${spawnError ? ` (${spawnError.code || spawnError.message})` : ''}`);
+      for (let i = 0; i < 300 && !fs.existsSync(tx.started) && !spawnError && (!launcherExit || launcherExit.code === 0); i++) await new Promise((resolve) => setTimeout(resolve, 50));
+      if (spawnError || !fs.existsSync(tx.started)) {
+        const output = testMode ? (await Promise.all([logFile, helperOutput, helperErrors].map((file) => fsp.readFile(file, 'utf8').catch(() => '')))).join('\n').trim().slice(-1000) : '';
+        const reason = spawnError?.code || spawnError?.message || (launcherExit && launcherExit.code !== 0 ? `PowerShell launcher exit ${launcherExit.code ?? launcherExit.signal}` : 'startup timeout');
+        throw new Error(`업데이트 설치를 시작하지 못했어요. 다시 시도해 주세요.${testMode ? ` (${reason}${output ? `: ${output}` : ''})` : ''}`);
+      }
       setTimeout(() => app.quit(), 300);
       return state;
     } catch (error) { return failure(error); }

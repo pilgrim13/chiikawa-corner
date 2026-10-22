@@ -86,11 +86,15 @@ node scripts/publish-update.mjs \
 node scripts/publish-windows-update.mjs \
   --exe ".runtime/windows-artifact/Chiikawa-Corner-0.3.0-windows-x64-Setup.exe" \
   --version 0.3.0 \
-  --url "https://github.com/pilgrim13/chiikawa-corner/releases/latest/download/Chiikawa-Corner-windows.exe" \
+  --url "https://github.com/pilgrim13/chiikawa-corner/releases/download/v0.3.0/Chiikawa-Corner-0.3.0-windows-x64-Setup.exe" \
   --notes "업데이트 내용"
 ```
 
-위 명령은 **업로드하지 않고** `release-feed/latest.json`·`win-latest.json`과 검증된 ZIP·EXE를 준비한다. 실제 릴리스 버전과 앱 버전이 같아야 한다. 파일 최대 크기는 1 GiB, 설명은 6,000자다. 같은 버전의 다른 내용이나 이전 버전으로 피드를 덮어쓰지 않는다. Windows 릴리스 설치파일은 `Chiikawa-Corner-windows.exe` 이름으로 올린다.
+위 명령은 **업로드하지 않고** `release-feed/latest.json`·`win-latest.json`과 검증된 ZIP·EXE를 준비한다. 실제 릴리스 버전과 앱 버전이 같아야 한다. 파일 최대 크기는 1 GiB, 설명은 6,000자다. 같은 버전의 다른 내용이나 이전 버전으로 피드를 덮어쓰지 않는다.
+
+서명한 manifest의 ZIP·EXE URL은 `releases/download/v0.3.0/...`처럼 **릴리스 버전과 파일명이 고정된 주소**를 사용한다. `releases/latest/download/...` 주소를 설치파일 URL에 넣으면 다음 릴리스 뒤 이전 manifest가 다른 파일을 받아 해시 검증에 실패할 수 있다. Windows는 `Chiikawa-Corner-0.3.0-windows-x64-Setup.exe`를 올리고, 그 파일의 동일한 복사본을 README 다운로드 버튼용 `Chiikawa-Corner-windows.exe` 이름으로 함께 올린다. Mac의 버튼용 이름은 `Chiikawa-Corner-mac.dmg`다. 별칭과 원본의 SHA-256이 같아야 한다.
+
+GitHub 릴리스는 초안으로 만들고 검증된 Mac DMG·버전별 ZIP·`latest.json`, Windows 버전별 EXE·동일한 EXE 별칭·`win-latest.json`을 모두 업로드한 뒤 정식 최신 릴리스로 공개한다. 그러면 앱의 두 피드 주소와 README 다운로드 버튼이 같은 완성된 릴리스를 가리킨다. Windows EXE는 해당 커밋의 CI에서 실제 설치·업데이트 검증을 통과한 artifact를 사용한다. 공개 후 두 피드의 서명을 앱에 고정한 공개키로 확인하고, manifest의 고정 URL에서 받은 파일의 크기·SHA-256 및 두 다운로드 별칭을 다시 확인한다.
 
 피드의 `payload`는 원본 JSON 바이트의 Base64이고, `signature`는 그 바이트의 Ed25519 서명이다. 내용은 앱 ID·버전·플랫폼·아키텍처·다운로드 URL·크기·SHA-256·릴리스 설명을 포함한다. 앱에 넣은 공개키와 실제 배포 키, 피드 URL이 일치해야 한다. Windows는 별도 PowerShell 프로세스가 기존 앱 종료 후 NSIS를 조용히 설치하고 새 앱 시작 확인을 남긴다.
 

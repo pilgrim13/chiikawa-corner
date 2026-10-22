@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="520" height="112" viewBox="0 0 520 112" role="img" aria-labelledby="title desc">
+  <title id="title">설치 없이 바로 놀기</title>
+  <desc id="desc">브라우저에서 치이카와 모퉁이를 열고 친구와 만나기</desc>
+  <rect x="1" y="1" width="518" height="110" rx="24" fill="#ad7252" stroke="#9a6245" stroke-width="2" />
+  <g transform="translate(47 35)" stroke="#fffaf1" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round" fill="none">
+    <rect x="0" y="1" width="36" height="36" rx="6" />
+    <path d="M1 11h34m-23 17 12-12m-9 0h9v9" />
+  </g>
+  <text x="290" y="49" text-anchor="middle" fill="#fffaf1" font-family="-apple-system,BlinkMacSystemFont,Apple SD Gothic Neo,Malgun Gothic,sans-serif" font-size="27" font-weight="700">설치 없이 바로 놀기</text>
+  <text x="290" y="79" text-anchor="middle" fill="#f4d6bf" font-family="-apple-system,BlinkMacSystemFont,Arial,sans-serif" font-size="16" letter-spacing="1.2">OPEN IN YOUR BROWSER</text>
+</svg>

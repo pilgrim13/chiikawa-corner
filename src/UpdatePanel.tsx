@@ -69,7 +69,9 @@ export function UpdatePanel({ desktop }: { desktop: boolean }) {
   const busy = actionPending || ['checking', 'downloading', 'verifying', 'installing'].includes(state.phase);
   const hasUpdate = ['available', 'ready'].includes(state.phase);
   const percent = typeof state.progress === 'number' && Number.isFinite(state.progress) ? Math.round(Math.min(100, Math.max(0, state.progress))) : undefined;
-  const copy = phaseCopy[state.phase];
+  const copy = state.phase === 'unsupported' && !desktop
+    ? { title: '브라우저는 새로고침으로', detail: '새로고침하면 최신 화면을 볼 수 있어.' }
+    : phaseCopy[state.phase];
   const invoke = async (action: UpdateAction) => {
     if (!supported || !api || busy || actionLock.current) return;
     actionLock.current = true; lastAction.current = action; setActionPending(true);
@@ -99,7 +101,7 @@ export function UpdatePanel({ desktop }: { desktop: boolean }) {
         <div className="update-dialog-heading"><span className="eyebrow">A FRESH LITTLE CORNER</span><button ref={closeRef} type="button" className="subtle-button update-close" aria-label="업데이트 창 닫기" onClick={() => setOpen(false)}><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" aria-hidden="true"><path d="m6 6 12 12M6 18 18 6" /></svg></button></div>
         <div className={`update-symbol ${state.phase === 'current' ? 'is-current' : ''}`} aria-hidden="true"><UpdateIcon spinning={busy} /></div>
         <div className="update-status" role={state.phase === 'error' ? 'alert' : 'status'} aria-live="polite"><h2 id="update-dialog-title">{copy.title}</h2><p id="update-dialog-description">{state.message || copy.detail}</p></div>
-        <dl className="update-versions"><div><dt>현재 버전</dt><dd>{state.currentVersion ? `v${state.currentVersion}` : supported ? '확인 중' : '브라우저 미리보기'}</dd></div>{state.latestVersion && <div><dt>새 버전</dt><dd>v{state.latestVersion}</dd></div>}</dl>
+        <dl className="update-versions"><div><dt>현재 버전</dt><dd>{state.currentVersion ? `v${state.currentVersion}` : supported ? '확인 중' : '브라우저 버전'}</dd></div>{state.latestVersion && <div><dt>새 버전</dt><dd>v{state.latestVersion}</dd></div>}</dl>
         {(state.phase === 'downloading' || state.phase === 'verifying') && <div className="update-progress"><div><span>{state.phase === 'verifying' ? '파일 확인 중' : '다운로드 중'}</span><strong>{state.phase === 'verifying' ? '100%' : percent === undefined ? '준비 중' : `${percent}%`}</strong></div><progress aria-label={state.phase === 'verifying' ? '업데이트 파일 확인' : '업데이트 다운로드'} max={100} value={state.phase === 'verifying' ? 100 : percent} /></div>}
         {state.releaseNotes && <section className="update-release-notes" aria-label="업데이트 내용"><h3>이번에 달라진 점</h3><p>{state.releaseNotes}</p></section>}
         {state.phase === 'ready' && <p className="update-restart-note">쓰던 메시지는 먼저 보내줘. 준비되면 재시작하면 돼.</p>}

@@ -3,7 +3,7 @@
 import { execFile } from 'node:child_process';
 import { createHash, createPublicKey, verify } from 'node:crypto';
 import { createReadStream } from 'node:fs';
-import { copyFile, lstat, mkdir, readFile, rename, stat, writeFile } from 'node:fs/promises';
+import { copyFile, lstat, mkdir, readFile, rename, rm, stat, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
@@ -31,6 +31,7 @@ export async function publishWindowsUpdate({ exe, version, url, notes }) {
   if (file.length < 1024 || file.length > 1024 ** 3 || file.toString('ascii', 0, 2) !== 'MZ') throw new Error('Windows 설치파일이 아니거나 크기가 올바르지 않아요.');
   const address = new URL(url);
   if (address.protocol !== 'https:' || address.username || address.password || address.search || address.hash || !/^[A-Za-z0-9][A-Za-z0-9._-]*\.exe$/.test(path.basename(address.pathname))) throw new Error('안전한 GitHub 설치파일 HTTPS 주소가 필요해요.');
+  if (address.pathname.includes('/releases/latest/download/') || !path.basename(address.pathname).includes(version)) throw new Error('서명 목록에는 버전 번호가 들어간 고정 설치파일 URL이 필요해요.');
   if (typeof notes !== 'string' || notes.length > 6000) throw new Error('업데이트 설명은 6000자 이하여야 해요.');
   const payload = { schema: 1, appId: 'com.corner.chiikawa', version, platform: 'win32', arch: 'x64', url: address.href, size: file.length, sha256: createHash('sha256').update(file).digest('hex'), releaseNotes: notes };
   const raw = Buffer.from(JSON.stringify(payload));
@@ -57,7 +58,13 @@ export async function publishWindowsUpdate({ exe, version, url, notes }) {
   const staged = path.join(output, `.win-latest-${process.pid}.json`);
   await writeFile(staged, JSON.stringify({ payload: raw.toString('base64'), signature }, null, 2) + '\n', { mode: 0o600 });
   await rename(staged, latest);
-  return { version, latest, exe: published, sha256: payload.sha256, size: payload.size };
+  // Keep the README's stable one-click download separate from the immutable,
+  // versioned URL in the signed manifest.
+  const alias = path.join(output, 'Chiikawa-Corner-windows.exe');
+  const stagedAlias = path.join(output, `.windows-alias-${process.pid}.exe`);
+  try { await copyFile(published, stagedAlias); await rename(stagedAlias, alias); }
+  finally { await rm(stagedAlias, { force: true }); }
+  return { version, latest, exe: published, alias, sha256: payload.sha256, size: payload.size };
 }
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   try { console.log(JSON.stringify(await publishWindowsUpdate(parse(process.argv.slice(2))), null, 2)); }

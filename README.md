@@ -7,11 +7,12 @@
 **각자의 하루, 같은 모퉁이.**
 
 할 일을 하는 동안에도, 좋아하는 친구들은 곁에.<br />
-Mac·Windows 바탕화면 구석을 산책하는 작은 친구들과 말풍선으로 수다 떨어요.
+Mac·Windows 바탕화면 또는 브라우저의 작은 정원에서 친구들과 말풍선으로 수다 떨어요.
 
 <a href="https://github.com/pilgrim13/chiikawa-corner/releases/latest/download/Chiikawa-Corner-mac.dmg"><img src="docs/download.svg" width="245" alt="Mac용 앱 내려받기 · Apple Silicon + Intel" /></a> <a href="https://github.com/pilgrim13/chiikawa-corner/releases/latest/download/Chiikawa-Corner-windows.exe"><img src="docs/download-windows.svg" width="245" alt="Windows용 앱 내려받기 · x64" /></a>
+<br /><a href="https://junnyeonglee-macmini.taile9e6e.ts.net/chiikawa/"><img src="docs/download-web.svg" width="245" alt="설치 없이 브라우저에서 바로 놀기" /></a>
 
-<sub>macOS 13 이상 / Windows 10·11 x64 · 회원가입 없이 · 앱 하나만 설치</sub>
+<sub>macOS 13 이상 / Windows 10·11 x64 / 브라우저 · 회원가입 없이</sub>
 
 [새 소식](https://github.com/pilgrim13/chiikawa-corner/releases) · [불편한 점 알려주기](https://github.com/pilgrim13/chiikawa-corner/issues)
 
@@ -21,17 +22,20 @@ Mac·Windows 바탕화면 구석을 산책하는 작은 친구들과 말풍선�
 
 ### 우리, 같이 있을까요?
 
-1. **앱을 데려와요.** Mac은 DMG를 열고 **Chiikawa Corner**를 **Applications**로 끌어 놓아요. Windows는 EXE를 실행하면 내 계정에 설치돼요.
+1. **모퉁이를 열어요.** 브라우저는 위 **설치 없이 바로 놀기**를 누르면 돼요. Mac은 DMG를 열고 **Chiikawa Corner**를 **Applications**로 끌어 놓아요. Windows는 EXE를 실행하면 내 계정에 설치돼요.
 2. **오늘의 나를 골라요.** 닉네임과 캐릭터를 정하고 **우리 방 만들기**를 눌러요. 친구 8종 중 누구든 좋아요.
-3. **친구에게 문을 열어요.** **친구 초대**로 복사한 초대장을 보내요. 친구는 **초대받았어요**에 붙여넣고, 방장은 **들어와!**를 누르면 만날 수 있어요.
+3. **친구에게 문을 열어요.** **링크 초대**나 **친구 초대**로 복사한 내용을 보내요. 친구는 링크를 열거나 **초대받았어요**에 붙여넣고, 방장은 **들어와!**를 눌러요.
 
 한 방에 최대 **8명**. **창 접고 바탕화면에서 만나기**를 누르면 작은 친구들만 남아요.<br />
 대화창은 캐릭터를 누르거나 Mac **⌘⇧Space** / Windows **Ctrl+Shift+Space**로 다시 열어요. 아직 혼자라면 **먼저 혼자 둘러보기**부터!
+
+브라우저에서는 친구들이 **탭 안의 작은 정원**을 산책해요. 지원 브라우저의 **작은 창으로 띄우기**를 누르면 다른 앱을 보는 동안에도 작은 떠 있는 창에서 채팅할 수 있어요. 원래 탭은 열어둬야 해요. 바탕화면에 캐릭터만 남기는 방식은 Mac·Windows 앱에서 사용할 수 있어요.
 
 ### 새 버전도 가볍게
 
 앱 오른쪽 위 **업데이트 → 업데이트 확인 → 업데이트 다운로드 → 재시작하고 적용** 순서로 눌러요.<br />
 다운로드가 끝나도 바로 꺼지지 않아요. 준비됐을 때 재시작하면 돼요.
+브라우저는 새로고침하면 새 화면을 받아요.
 
 ### 작은 궁금증
 
@@ -68,12 +72,14 @@ Mac 앱은 **macOS 13 이상**의 Apple Silicon·Intel 통합 파일이에요. W
 
 같은 방에서 계속 대화할 수 있어요. 예전 앱은 새 캐릭터 5종의 그림이 없어서 그 친구를 기본 치이카와 모습으로 보여줘요. 새 앱에서는 원래 고른 모습으로 보여요. 업데이트는 각자가 원할 때 앱 오른쪽 위 버튼으로 적용하면 돼요.
 
+단, 0.2.1 앱은 새 웹 주소가 포함된 전체 초대장을 읽지 못해요. 이전 앱으로 접속 중이라면 **8자리 코드만** 입력해 같은 방에 들어오거나, 0.3.0으로 업데이트해 주세요.
+
 </details>
 
 <details>
 <summary><b>친구 방에 연결되지 않아요.</b></summary>
 
-지금 채팅 서버는 개발자의 집 Mac에서 돌아가요. 그 Mac이나 서버 연결이 쉬는 동안에는 친구 방에 접속하지 못할 수 있어요. **혼자 둘러보기**는 계속 사용할 수 있어요.
+지금 채팅 서버와 웹판은 개발자의 집 Mac에서 돌아가요. 그 Mac이나 서버 연결이 쉬는 동안에는 친구 방에 접속하지 못할 수 있어요. 설치 앱의 **혼자 둘러보기**는 계속 사용할 수 있어요.
 
 방과 대화는 임시로 머물러요. 최근 대화 100개만 보관하고, 방이 종료되거나 서버가 재시작되면 사라져요.
 

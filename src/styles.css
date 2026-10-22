@@ -486,6 +486,7 @@ details.room-controls { display: block; }
   .onboarding-actions .subtle-button { padding: 6px; }
   .app-footer { margin-top: 10px; padding-top: 9px; flex-direction: row; font-size: 8px; gap: 6px; }
 }
+
 @media (min-width: 640px) and (max-height: 650px) {
   .app-shell:has(.room-layout) { height: 100dvh; display: flex; flex-direction: column; overflow: hidden; }
   .app-shell:has(.room-layout) > .app-header, .app-shell:has(.room-layout) > .room-header, .app-shell:has(.room-layout) > .demo-banner, .app-shell:has(.room-layout) > .error-banner, .app-shell:has(.room-layout) > .notice-banner { flex-shrink: 0; }
@@ -520,3 +521,68 @@ details.room-controls { display: block; }
   .composer .primary-button { height: 28px; font-size: 9px; padding: 5px 9px; }
   .composer-meta { font-size: 7px; gap: 5px; }
 }
+
+/* The web edition keeps the room alive in a tab and gives its friends a garden to wander. */
+.browser-document body { min-width: 320px; }
+.browser-document .room-main { min-height: 560px; }
+.browser-document .room-sidebar .section-heading h2 { line-height: 1.5; }
+.browser-document .room-header p, .browser-document .message-bubble, .browser-document .composer textarea { font-size: 13px; }
+.browser-document .message-meta, .browser-document .member-info > span, .browser-document .settings-hint { font-size: 10px !important; }
+.browser-document .member-info strong, .browser-document .settings-row, .browser-document .conversation-heading > span { font-size: 12px; }
+.browser-document .room-header-actions button { min-height: 38px; }
+.browser-float-bar { display: grid; grid-template-columns: minmax(0, 1fr) minmax(188px, 240px); align-items: center; gap: 15px; padding: 12px 20px; border-bottom: 1px solid #ede6d9; background: #fcfaf3; }
+.browser-float-bar > div:first-child { min-width: 0; }
+.browser-float-bar strong, .browser-float-bar > div:first-child span { display: block; }
+.browser-float-bar strong { color: #7a6b5d; font-size: 11px; }
+.browser-float-bar > div:first-child span { margin-top: 3px; color: #a39381; font-size: 10px; line-height: 1.5; }
+.browser-float-bar .browser-float-hint { font-size: 9px; }
+.browser-float-bar .browser-float-trigger { padding: 7px 9px; font-size: 10px; }
+.browser-garden { position: relative; isolation: isolate; flex-shrink: 0; height: 292px; overflow: hidden; border-bottom: 1px solid #e0e9d4; background: linear-gradient(#eff7f0 0%, #f8f9ed 74%, #eaf0dd 74%); }
+.browser-garden-caption { position: absolute; top: 16px; left: 20px; z-index: 5; color: #76907a; font-size: 9px; font-weight: 800; letter-spacing: 1.5px; }
+.browser-garden-caption span { margin-left: 9px; color: #9aab92; font-size: 9px; font-weight: 500; letter-spacing: 0; }
+.browser-garden-sun { position: absolute; top: 25px; right: 49px; width: 43px; height: 43px; border-radius: 50%; background: #f5e9b9; box-shadow: 0 0 0 9px #f5e9b93d; }
+.browser-garden-cloud { position: absolute; width: 58px; height: 16px; border-radius: 40px; background: #fffefaaf; }
+.browser-garden-cloud::before, .browser-garden-cloud::after { content: ''; position: absolute; bottom: 4px; border-radius: 50%; background: #fffefaaf; }
+.browser-garden-cloud::before { left: 13px; width: 21px; height: 21px; }
+.browser-garden-cloud::after { right: 7px; width: 16px; height: 16px; }
+.browser-garden-cloud-one { top: 53px; left: 17%; }
+.browser-garden-cloud-two { top: 86px; right: 23%; scale: .7; opacity: .8; }
+.browser-garden-hill { position: absolute; left: -10%; width: 120%; border-radius: 50% 50% 0 0; }
+.browser-garden-hill-back { height: 108px; bottom: -22px; background: #dfebd8; transform: rotate(-3deg); }
+.browser-garden-hill-front { height: 63px; bottom: -33px; background: #d5e5cd; transform: rotate(2deg); }
+.browser-garden-pet { position: absolute; width: 136px; min-height: 106px; display: flex; flex-direction: column; align-items: center; justify-content: end; transition: transform 2.5s ease-in-out, opacity .25s; }
+.browser-garden-image { display: block; object-fit: contain; margin-bottom: -10px; animation: garden-bob 3.3s ease-in-out infinite; }
+.browser-garden-pet:nth-of-type(odd) .browser-garden-image { animation-delay: -1.1s; }
+.browser-garden-name { position: relative; z-index: 1; max-width: 124px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; border: 1px solid #d7dfcf; border-radius: 10px; background: #fffdf4e8; color: #776d5c; padding: 4px 9px; font-size: 9px; box-shadow: 0 2px 6px #52654412; }
+.browser-garden-bubble { position: absolute; z-index: 3; bottom: calc(100% - 4px); left: 50%; transform: translateX(-50%); width: max-content; max-width: min(185px, 42vw); max-height: 65px; overflow: hidden; overflow-wrap: anywhere; white-space: pre-wrap; border: 1px solid #e1dccd; border-radius: 13px 13px 13px 4px; background: #fffef8fa; padding: 8px 11px; color: #766c5f; font-size: 10px; line-height: 1.5; box-shadow: 0 3px 13px #52654412; }
+.browser-garden-grass { position: absolute; z-index: 4; bottom: 15px; color: #f8f5d7; font-size: 17px; }
+.browser-garden-grass-one { left: 5%; }
+.browser-garden-grass-two { right: 7%; bottom: 20px; font-size: 13px; }
+@keyframes garden-bob { 0%, 100% { translate: 0 0; } 50% { translate: 0 -4px; } }
+
+@media (max-width: 680px) {
+  .browser-document .app-shell { padding: 0 15px 24px; }
+  .browser-document .room-header { display: block; }
+  .browser-document .room-header-actions { max-width: none; width: 100%; justify-content: flex-start; margin-top: 14px; }
+  .browser-document .room-header-actions .subtle-button { padding: 9px 10px; }
+  .browser-document .room-layout { grid-template-columns: 1fr; }
+  .browser-document .room-main { min-height: 600px; }
+  .browser-float-bar { grid-template-columns: 1fr; gap: 8px; padding: 11px 14px; }
+  .browser-float-bar .browser-float-trigger { width: 100%; }
+  .browser-garden { height: 265px; }
+  .browser-garden-pet { width: 98px; min-height: 90px; }
+  .browser-garden-pet img { max-width: 76px; max-height: 76px; }
+  .browser-garden-pet.back-row { bottom: 94px !important; }
+  .browser-garden-caption { top: 13px; left: 13px; font-size: 8px; }
+  .browser-garden-caption span { display: block; margin: 3px 0 0; font-size: 8px; }
+  .browser-garden-bubble { max-width: 108px; max-height: 48px; padding: 5px 7px; font-size: 8px; }
+  .browser-garden-name { max-width: 95px; font-size: 8px; padding: 3px 6px; }
+}
+@media (min-width: 640px) and (max-height: 650px) {
+  .browser-document .app-shell:has(.room-layout) { height: auto; display: block; overflow: visible; }
+  .browser-document .room-layout { height: auto; min-height: 0; }
+  .browser-document .room-main { min-height: 560px; height: auto; }
+  .browser-document .room-sidebar { height: auto; overflow: visible; }
+  .browser-document .browser-garden { height: 240px; }
+}
+@media (prefers-reduced-motion: reduce) { .browser-garden-pet { transition: none; } .browser-garden-image { animation: none; } }

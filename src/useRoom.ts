@@ -6,19 +6,20 @@ export type Joined = { room: RoomSnapshot; session: Session };
 const sessionKey = (endpoint: string) => `corner.session:${endpoint}`;
 const leaveKey = (endpoint: string) => `corner.leave:${endpoint}`;
 type RequestFailure = Error & { code?: string };
-function emitRequest<T>(socket: Socket, event: string, payload: object): Promise<T> {
+function emitRequest<T>(socket: Socket, event: string, payload: object, onAcknowledged?: (data: T) => void): Promise<T> {
   return new Promise<T>((resolve, reject) => {
     socket.timeout(8000).emit(event, payload, (timeoutError: Error | null, ack: Ack<T>) => {
       if (timeoutError) return reject(new Error('응답이 늦어지고 있어. 연결되면 다시 이어갈게.'));
       if (!ack?.ok) return reject(Object.assign(new Error(ack?.error || '요청을 처리하지 못했어.'), { code: ack && !ack.ok ? ack.code : undefined }));
-      resolve(ack.data);
+      try { onAcknowledged?.(ack.data); resolve(ack.data); }
+      catch (cause) { reject(cause); }
     });
   });
 }
 export function normalizeServer(raw: string): string {
   const url = new URL(raw.trim());
   if (!['http:', 'https:'].includes(url.protocol) || url.username || url.password) throw new Error('서버 주소는 http:// 또는 https://로 시작해야 해.');
-  return url.origin;
+  return `${url.origin}${url.pathname.replace(/\/+$/u, '')}`;
 }
 export function parseInvitation(raw: string): { code: string; endpoint?: string } {
   const parts = raw.trim().split('|').map((part) => part.trim());
@@ -58,7 +59,8 @@ export function useRoom(endpoint: string) {
   }, []);
   useEffect(() => {
     if (!endpoint) return;
-    const socket = io(endpoint, { autoConnect: false, reconnection: true, timeout: 7000, auth: { characterSet: 8 } });
+    const server = new URL(endpoint);
+    const socket = io(server.origin, { path: `${server.pathname.replace(/\/+$/u, '')}/socket.io`, autoConnect: false, reconnection: true, timeout: 7000, auth: { characterSet: 8 } });
     let disposed = false;
     let retryTimer: number | undefined;
     let connectionVersion = 0;
@@ -97,9 +99,11 @@ export function useRoom(endpoint: string) {
         const saved = sessionRef.current;
         if (saved) {
           try {
-            const joined = await emitRequest<Joined>(socket, 'room:resume', { roomId: saved.roomId, token: saved.token });
-            if (!current()) return;
-            acceptJoined(joined, endpoint);
+            await emitRequest<Joined>(socket, 'room:resume', { roomId: saved.roomId, token: saved.token }, (joined) => {
+              // Apply this snapshot in Socket.IO packet order. Waiting for the
+              // Promise can overwrite newer events bundled in the same poll.
+              if (current()) acceptJoined(joined, endpoint);
+            });
           } catch (cause) {
             if (!current()) return;
             if ((cause as RequestFailure).code !== 'INVALID_SESSION') throw cause;

@@ -1,0 +1,61 @@
+.browser-float-control { display: grid; gap: 7px; min-width: 0; }
+.browser-float-trigger { justify-content: center; gap: 7px; }
+.browser-float-trigger:disabled { opacity: .55; cursor: default; }
+.browser-float-hint, .browser-float-warning { margin: 0; color: #927f71; font-size: 11px; line-height: 1.55; word-break: keep-all; }
+.browser-float-warning { color: #a75b43; }
+
+.corner-float-document { color-scheme: light; height: 100%; background: #fffaf1; }
+.corner-float-document body { height: 100%; margin: 0; }
+.corner-float-root { height: 100%; }
+.corner-float, .corner-float * { box-sizing: border-box; }
+.corner-float { height: 100%; min-height: 220px; display: flex; flex-direction: column; overflow: hidden; background: #fffaf1; color: #493c37; font: 13px/1.5 -apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif; -webkit-font-smoothing: antialiased; }
+.corner-float button, .corner-float textarea { font: inherit; }
+.corner-float button { cursor: pointer; }
+.corner-float button:focus-visible, .corner-float textarea:focus-visible { outline: 2px solid #a65e40; outline-offset: 3px; }
+.corner-float-header { display: flex; flex: 0 0 auto; align-items: center; justify-content: space-between; gap: 10px; padding: 15px 18px 5px; }
+.corner-float-header > div { min-width: 0; }
+.corner-float-eyebrow { margin: 0 0 2px; color: #a58a73; font-size: 10px; letter-spacing: .03em; }
+.corner-float-header h1 { overflow: hidden; margin: 0; font-size: 17px; font-weight: 750; text-overflow: ellipsis; white-space: nowrap; letter-spacing: -.04em; }
+.corner-float-back { flex: 0 0 auto; padding: 6px 8px; border: 1px solid #e9ddcf; border-radius: 9px; background: #fffdf8; color: #8a7465; font-size: 11px !important; }
+.corner-float-back:hover { background: #f9eddf; }
+.corner-float-status { display: flex; flex: 0 0 auto; align-items: center; gap: 5px; padding: 0 18px 6px; color: #8c7d6e; font-size: 10px; }
+.corner-float-status > span { width: 5px; height: 5px; border-radius: 50%; background: #89a87c; }
+.corner-float-status.is-offline > span { background: #d6a56d; }
+.corner-float-scene { display: grid; flex: 0 0 146px; align-items: end; gap: 3px 7px; padding: 10px 18px 12px; border-bottom: 1px solid #eddfcc; background: #f8efdd; }
+.corner-float-scene.is-crowded { flex-basis: 212px; padding-top: 4px; gap: 2px 7px; }
+.corner-float-pet { position: relative; display: flex; min-width: 0; flex-direction: column; align-items: center; animation: corner-float-stroll 7s ease-in-out infinite; }
+.corner-float-pet img { display: block; width: 82px; height: 82px; max-width: 100%; object-fit: contain; user-select: none; }
+.corner-float-scene.is-crowded .corner-float-pet img { width: 62px; height: 62px; }
+.corner-float-pet.is-away img { opacity: .45; }
+.corner-float-pet-name { overflow: hidden; max-width: 100%; padding: 2px 5px 0; color: #89705a; font-size: 10px; line-height: 15px; text-overflow: ellipsis; white-space: nowrap; }
+.corner-float-bubble { position: absolute; z-index: 1; bottom: calc(100% - 8px); display: -webkit-box; max-height: 43px; width: max-content; max-width: min(118px, 125%); overflow: hidden; padding: 4px 8px; border: 1px solid #e9d9c3; border-radius: 10px 10px 10px 3px; background: #fffdf8; color: #785f4e; font-size: 10px; line-height: 15px; text-overflow: ellipsis; word-break: break-word; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+.corner-float-messages { flex: 1 1 auto; min-height: 40px; overflow-y: auto; overscroll-behavior: contain; padding: 12px 16px 7px; scrollbar-width: thin; scrollbar-color: #deccba transparent; }
+.corner-float-message { display: flex; align-items: start; gap: 7px; margin-bottom: 10px; }
+.corner-float-message > img { flex: 0 0 auto; width: 26px; height: 26px; object-fit: contain; margin-top: 2px; }
+.corner-float-message > div { min-width: 0; max-width: calc(100% - 35px); }
+.corner-float-message > div > span { display: block; margin-bottom: 2px; color: #9a8679; font-size: 10px; }
+.corner-float-message p { margin: 0; padding: 6px 9px; border: 1px solid #eee3d5; border-radius: 0 10px 10px 10px; background: #fffefa; font-size: 12px; overflow-wrap: anywhere; white-space: pre-wrap; }
+.corner-float-message.is-mine { flex-direction: row-reverse; }
+.corner-float-message.is-mine > div > span { text-align: right; }
+.corner-float-message.is-mine p { border-color: #efd6c6; border-radius: 10px 0 10px 10px; background: #f9e9de; }
+.corner-float-empty, .corner-float-system { margin: 8px 0 12px; color: #a49281; font-size: 10px; text-align: center; overflow-wrap: anywhere; }
+.corner-float-composer { flex: 0 0 auto; padding: 9px 14px 12px; border-top: 1px solid #eadfd1; background: #fffaf1; }
+.corner-float-composer textarea { display: block; width: 100%; min-height: 48px; max-height: 80px; resize: none; padding: 8px 10px; border: 1px solid #e4d5c4; border-radius: 10px; background: #fffefa; color: #493c37; font-size: 12px; line-height: 1.5; }
+.corner-float-composer textarea::placeholder { color: #aa9787; }
+.corner-float-compose-actions { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding-top: 7px; }
+.corner-float-compose-actions > span { color: #a18d7e; font-size: 9px; }
+.corner-float-compose-actions button { padding: 6px 13px; border: 0; border-radius: 9px; background: #e8aa8a; color: #553e32; font-size: 12px; font-weight: 700; }
+.corner-float-compose-actions button:hover:not(:disabled) { background: #e69a76; }
+.corner-float-compose-actions button:disabled { opacity: .5; cursor: default; }
+.corner-float-error { margin: 0 0 6px; color: #a75b43; font-size: 10px; }
+@keyframes corner-float-stroll { 0%, 100% { transform: translateX(-3px) rotate(-1deg); } 50% { transform: translateX(3px) rotate(1deg); } }
+@media (prefers-reduced-motion: reduce) { .corner-float-pet { animation: none; } }
+@media (max-height: 440px) {
+  .corner-float-scene { flex-basis: 104px; padding-top: 5px; }
+  .corner-float-pet img { width: 58px; height: 58px; }
+  .corner-float-scene.is-crowded { flex-basis: 150px; }
+  .corner-float-scene.is-crowded .corner-float-pet img { width: 42px; height: 42px; }
+  .corner-float-bubble { max-height: 25px; -webkit-line-clamp: 1; }
+}
+@media (max-height: 340px) { .corner-float-scene { display: none; } .corner-float-header { padding-top: 8px; } }
+@media (max-width: 300px) { .corner-float-header { padding-inline: 12px; } .corner-float-header h1 { font-size: 15px; } .corner-float-back { font-size: 10px !important; } .corner-float-messages { padding-inline: 10px; } }
