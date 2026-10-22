@@ -1,4 +1,4 @@
-export type CharacterId = 'chiikawa' | 'hachiware' | 'usagi';
+export type CharacterId = 'chiikawa' | 'hachiware' | 'usagi' | 'momonga' | 'kurimanju' | 'shisa' | 'rakko' | 'furuhonya';
 export type Member = { id: string; nickname: string; character: CharacterId; color: string; online: boolean; joinedAt: number };
 export type ChatMessage = { id: string; memberId: string; nickname: string; character: CharacterId; text: string; sentAt: number; kind?: 'chat' | 'system' };
 export type JoinRequest = { id: string; nickname: string; character: CharacterId; requestedAt: number };
@@ -16,7 +16,7 @@ export type UpdateState = {
   message?: string;
 };
 export type DesktopApi = {
-  getConfig(): Promise<{ serverUrl: string; version: string; isDesktop: boolean }>;
+  getConfig(): Promise<{ serverUrl: string; version: string; isDesktop: boolean; platform: string }>;
   setOverlay(state: OverlayState): void;
   onOverlay(callback: (state: OverlayState) => void): () => void;
   setMousePassthrough(ignore: boolean): void;

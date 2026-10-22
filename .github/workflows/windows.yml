@@ -1,0 +1,78 @@
+name: Windows installer
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: windows-installer-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build-and-smoke:
+    runs-on: windows-latest
+    timeout-minutes: 25
+    defaults:
+      run:
+        shell: pwsh
+    env:
+      CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+      CORNER_BOOTSTRAP_VERSION: '0.2.9'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Install dependencies
+        run: npm ci
+      - name: Unit and integration tests
+        run: npm test
+      - name: Build Windows x64 NSIS installer
+        run: npm run package:win
+      - name: Build an older bootstrap for the actual update test
+        run: npx electron-builder --win nsis --x64 --publish never --config.extraMetadata.version=$env:CORNER_BOOTSTRAP_VERSION --config.directories.output=.runtime/windows-bootstrap
+      - name: Install the bootstrap NSIS package
+        run: |
+          $installer = @(Get-ChildItem release/*-windows-x64-Setup.exe)
+          if ($installer.Count -ne 1) { throw 'Expected exactly one Windows installer' }
+          $bootstrap = @(Get-ChildItem .runtime/windows-bootstrap/*-windows-x64-Setup.exe)
+          if ($bootstrap.Count -ne 1) { throw 'Expected exactly one bootstrap installer' }
+          $installDir = Join-Path $env:RUNNER_TEMP 'Chiikawa Corner Smoke'
+          $installed = Start-Process -FilePath $bootstrap[0].FullName -ArgumentList @('/S', "/D=$installDir") -PassThru -Wait
+          if ($installed.ExitCode -ne 0) { throw "NSIS installation failed: $($installed.ExitCode)" }
+          $executable = Join-Path $installDir 'Chiikawa Corner.exe'
+          if (-not (Test-Path $executable)) { throw 'Installed application executable was not found' }
+          "CORNER_EXECUTABLE=$executable" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "CORNER_UPDATE_INSTALLER=$($installer[0].FullName)" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+      - name: Update the installed app through its actual buttons
+        timeout-minutes: 7
+        run: node scripts/verify-update-windows.mjs
+      - name: Exercise the installed Windows application
+        timeout-minutes: 5
+        run: npm run test:win:installed
+      - name: Upload tested installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: chiikawa-corner-windows-x64-${{ github.sha }}
+          path: release/*-windows-x64-Setup.exe
+          if-no-files-found: error
+          retention-days: 14
+      - name: Upload Windows verification evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-smoke-evidence-${{ github.sha }}
+          path: test-results/windows-*
+          if-no-files-found: ignore
+          retention-days: 14
+
+# Release assets are uploaded only after this job passes. The publisher signs
+# the installer hash using the existing local Ed25519 key and uploads this EXE
+# with win-latest.json to the same version release as the Mac assets. Signing
+# keys are not copied into GitHub Actions, and an untested EXE is not published.

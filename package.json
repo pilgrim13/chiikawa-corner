@@ -1,6 +1,6 @@
 {
   "name": "chiikawa-corner",
-  "version": "0.2.1",
+  "version": "0.3.0",
   "private": true,
   "description": "친구들이 머무는 작은 바탕화면, 치이카와 모퉁이",
   "main": "electron/main.cjs",
@@ -15,7 +15,9 @@
     "build:updater": "clang -arch arm64 -arch x86_64 -mmacosx-version-min=13.0 scripts/swap-bundles.c -o electron/swap-bundles && codesign --force --sign - electron/swap-bundles",
     "package:mac": "npm run build:updater && npm run build && electron-builder --mac dmg zip --universal",
     "package:mac:intel": "npm run build:updater && npm run build && electron-builder --mac dmg zip --x64",
-    "package:mac:arm64": "npm run build:updater && npm run build && electron-builder --mac dmg zip --arm64"
+    "package:mac:arm64": "npm run build:updater && npm run build && electron-builder --mac dmg zip --arm64",
+    "package:win": "npm run build && electron-builder --win nsis --x64 --publish never",
+    "test:win:installed": "node scripts/verify-windows.mjs"
   },
   "dependencies": {
     "express": "^5.1.0",
@@ -93,11 +95,29 @@
       ]
     },
     "win": {
-      "target": "nsis"
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "electron/icon.ico",
+      "artifactName": "Chiikawa-Corner-${version}-windows-${arch}-Setup.${ext}",
+      "requestedExecutionLevel": "asInvoker",
+      "signExecutable": false
     },
     "nsis": {
       "oneClick": true,
-      "perMachine": false
+      "perMachine": false,
+      "allowElevation": false,
+      "runAfterFinish": true,
+      "deleteAppDataOnUninstall": false,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "치이카와 모퉁이",
+      "differentialPackage": false
     }
   },
   "author": "Chiikawa Corner prototype"

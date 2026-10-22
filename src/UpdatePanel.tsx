@@ -4,7 +4,7 @@ import type { UpdateState } from '../shared/protocol';
 type UpdateAction = 'check' | 'download' | 'install';
 const BROWSER_STATE: UpdateState = {
   phase: 'unsupported', currentVersion: '',
-  message: '업데이트는 설치된 Mac 앱에서 할 수 있어. 브라우저에서는 새로고침하면 최신 화면을 볼 수 있어.',
+  message: '업데이트는 설치된 앱에서 할 수 있어. 브라우저에서는 새로고침하면 최신 화면을 볼 수 있어.',
 };
 const phaseCopy: Record<UpdateState['phase'], { title: string; detail: string }> = {
   idle: { title: '새 소식이 있을까?', detail: '새 버전이 있는지 확인해볼까?' },
@@ -16,7 +16,7 @@ const phaseCopy: Record<UpdateState['phase'], { title: string; detail: string }>
   ready: { title: '업데이트 준비가 끝났어', detail: '아래 버튼을 누르면 앱이 잠깐 닫혔다가 새 버전으로 열려.' },
   installing: { title: '새 버전으로 다시 만날게', detail: '앱을 다시 여는 중이야. 잠깐만 기다려줘.' },
   error: { title: '업데이트를 마치지 못했어', detail: '인터넷 연결을 확인한 뒤 다시 시도해줘.' },
-  unsupported: { title: '설치형 앱에서 업데이트', detail: '설치된 Mac 앱에서 업데이트를 확인할 수 있어.' },
+  unsupported: { title: '설치형 앱에서 업데이트', detail: '설치된 앱에서 업데이트를 확인할 수 있어.' },
 };
 
 function UpdateIcon({ spinning = false }: { spinning?: boolean }) {

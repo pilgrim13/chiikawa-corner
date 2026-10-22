@@ -44,7 +44,8 @@ p { line-height: 1.7; }
 .prototype-label { font-size: 8px; letter-spacing: 1px; font-weight: 600; color: #b3a08a; }
 .status-pill i { display: none; }
 .app-header > div:last-child { display: flex; align-items: center; gap: 12px; }
-.desktop-document .app-header { -webkit-app-region: drag; padding-left: 64px; }
+.desktop-document .app-header { -webkit-app-region: drag; }
+.mac-desktop-document .app-header { padding-left: 64px; }
 .desktop-document .app-header a, .desktop-document .app-header button, .desktop-document .app-header input { -webkit-app-region: no-drag; }
 .status-pill { display: inline-flex; align-items: center; gap: 7px; font-size: 11px; color: #917d70; font-weight: 500; padding: 6px 10px; border: 1px solid #e9dfd1; border-radius: 20px; white-space: nowrap; }
 .status-pill::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: #cbbdac; }
@@ -412,3 +413,110 @@ details.room-controls { display: block; }
 @media (max-width: 880px) { .header-actions .prototype-label { display: none; } }
 @media (max-width: 680px) { .update-dialog-content { padding: 22px; } .update-button { font-size: 9px; padding: 6px; } .update-status h2 { font-size: 19px; } .update-actions { gap: 6px; } }
 @media (prefers-reduced-motion: reduce) { .update-icon.spinning { animation: none; } }
+
+.profile-character-picker { min-width: 0; }
+.character-picker-heading { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; margin: 0 0 8px; font-size: 11px; font-weight: 600; }
+.character-picker-scroll-hint { display: none; }
+.character-picker-heading > span:last-child { font-size: 9px; color: var(--muted); font-weight: 400; }
+.character-picker-viewport { max-height: 218px; overflow-y: auto; overscroll-behavior: contain; scrollbar-gutter: stable; padding: 4px 5px 4px 4px; margin: -4px -5px -4px -4px; }
+.profile-character-picker .character-picker { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 7px; }
+.profile-character-picker .character-option { min-height: 96px; padding: 4px 3px 9px; border-radius: 11px; }
+.profile-character-picker .character-option.selected { padding: 3.5px 2.5px 8.5px; }
+.profile-character-picker .character-option .character-image { height: 76px; margin: -5px auto 0; }
+.profile-character-picker .character-name { font-size: 10px; line-height: 1.5; margin-top: -2px; }
+.profile-character-picker .character-option.selected::after { top: 5px; right: 5px; width: 14px; height: 14px; font-size: 8px; }
+.character-selection { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; min-height: 27px; padding-top: 9px; color: #9d8b7d; font-size: 9px; line-height: 1.5; }
+.character-selection i { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
+.character-selection strong { color: #785f4c; font-weight: 600; }
+.settings-shortcut { display: block; margin-top: 7px; }
+.settings-shortcut kbd { margin-left: 5px; font: inherit; font-size: 9px; border: 1px solid #e8ddcd; border-radius: 4px; padding: 2px 4px; background: #fffaf2; }
+@media (min-width: 681px) and (max-height: 850px) {
+  .profile-panel > .field { margin-bottom: 13px; }
+  .profile-character-picker .character-option { min-height: 87px; }
+  .profile-character-picker .character-option .character-image { height: 66px; }
+  .character-picker-viewport { max-height: 192px; }
+}
+@media (min-width: 640px) and (max-height: 650px) {
+  .app-shell { padding: 0 20px 14px; }
+  .app-header { height: 64px; }
+  .brand { font-size: 15px; }
+  .brand small { font-size: 7px; letter-spacing: 1px; }
+  .brand-mark { width: 30px; height: 30px; }
+  .status-pill { font-size: 9px; padding: 5px 7px; }
+  .header-actions { gap: 6px !important; }
+  .hero { min-height: 100px; padding: 12px 0; }
+  .hero h1 { font-size: 23px; line-height: 1.25; margin: 6px 0 0; }
+  .hero h1 br, .hero-copy > p, .hero-meta, .hero-art-note { display: none; }
+  .hero .eyebrow { font-size: 6px; letter-spacing: 1px; }
+  .hero-art { width: 150px; height: 75px; }
+  .hero-art img { width: 82px; height: 82px; margin: 0 -18px -5px; }
+  .hero-art img:nth-child(2) { width: 95px; height: 95px; }
+  .hero-art::before { width: 116px; height: 48px; bottom: 4px; }
+  .hero-art::after { top: 3px; right: 8px; font-size: 12px; }
+  .hero-spark { left: 6px; top: 8px; font-size: 17px; }
+  .hero-ground { bottom: 3px; }
+  .onboarding-grid { grid-template-columns: 1.08fr 1fr; gap: 12px; }
+  .profile-panel, .room-panel { padding: 14px; border-radius: 15px; }
+  .onboarding-grid .section-heading { margin-bottom: 10px; gap: 8px; }
+  .section-heading h2 { font-size: 12px; }
+  .section-heading p { font-size: 9px; line-height: 1.5; margin-top: 3px; }
+  .step-number { min-width: 20px !important; height: 20px !important; font-size: 9px !important; }
+  .profile-panel > .field { font-size: 10px; gap: 5px; margin-bottom: 10px; }
+  .profile-panel > .field input, .join-form input { padding: 9px 10px; font-size: 11px; border-radius: 8px; }
+  .character-picker-heading { font-size: 10px; margin-bottom: 6px; }
+  .character-picker-viewport { max-height: 117px; }
+  .character-picker-scroll-hint { display: inline; }
+  .profile-character-picker .character-picker { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
+  .profile-character-picker .character-option { min-height: 78px; padding-bottom: 7px; }
+  .profile-character-picker .character-option.selected { padding-bottom: 6.5px; }
+  .profile-character-picker .character-option .character-image { height: 57px; }
+  .profile-character-picker .character-name { font-size: 9px; }
+  .character-selection { min-height: 25px; font-size: 8px; gap: 4px; padding-top: 7px; }
+  .room-tabs { margin-bottom: 12px; padding: 3px; }
+  .tab { font-size: 10px; padding: 8px 4px; }
+  .room-illustration { gap: 8px; margin-bottom: 8px; }
+  .room-illustration svg { width: 25px; height: 25px; }
+  .room-illustration span { font-size: 11px; }
+  .create-room-content p, .join-form p { font-size: 9px; line-height: 1.7; margin: 7px 0 12px; }
+  .room-panel .primary-button { font-size: 10px; padding: 9px 10px; }
+  .join-form .field { font-size: 10px; gap: 6px; margin-bottom: 6px; }
+  .advanced-settings { font-size: 9px; margin-top: 10px; padding-top: 9px; }
+  .onboarding-actions { margin-top: 8px; gap: 7px; }
+  .onboarding-actions > span, .onboarding-actions .subtle-button { font-size: 9px; }
+  .onboarding-actions .subtle-button { padding: 6px; }
+  .app-footer { margin-top: 10px; padding-top: 9px; flex-direction: row; font-size: 8px; gap: 6px; }
+}
+@media (min-width: 640px) and (max-height: 650px) {
+  .app-shell:has(.room-layout) { height: 100dvh; display: flex; flex-direction: column; overflow: hidden; }
+  .app-shell:has(.room-layout) > .app-header, .app-shell:has(.room-layout) > .room-header, .app-shell:has(.room-layout) > .demo-banner, .app-shell:has(.room-layout) > .error-banner, .app-shell:has(.room-layout) > .notice-banner { flex-shrink: 0; }
+  .room-header { padding: 12px 0; }
+  .room-header h1 { font-size: 18px; margin: 4px 0; }
+  .room-header .eyebrow { font-size: 7px; }
+  .room-header p { font-size: 10px; }
+  .demo-banner { margin-top: 10px; padding: 6px 10px; font-size: 9px; }
+  .demo-banner .subtle-button { padding: 5px 7px; font-size: 9px; }
+  .room-layout { flex: 1; grid-template-columns: minmax(0, 1fr) 205px; gap: 12px; height: auto; min-height: 0; }
+  .room-main { height: 100%; min-height: 0; border-radius: 14px; }
+  .room-sidebar { height: 100%; min-height: 0; overflow-y: auto; padding: 14px 12px; border-radius: 14px; }
+  .room-sidebar .member-list { display: flex; gap: 11px; }
+  .room-sidebar .section-heading h2 { font-size: 11px; }
+  .room-sidebar .settings-panel { margin-top: 14px; }
+  .preview-scene { height: 96px; min-height: 96px; }
+  .preview-caption { top: 10px; left: 12px; font-size: 6px; }
+  .preview-sun { width: 20px; height: 20px; top: 12px; right: 20px; }
+  .preview-floor { height: 22px; }
+  .preview-pet { width: 66px; bottom: 6px; }
+  .preview-pet .character-image { width: 68px; height: 68px; margin: -4px -1px -12px; }
+  .preview-pet .pet-label { max-width: 76px; font-size: 7px; padding: 2px 5px; }
+  .preview-bubble { bottom: 58px; max-width: 100px; max-height: 34px; padding: 4px 6px; font-size: 8px; }
+  .conversation-heading { padding: 10px 12px 0; }
+  .conversation-heading > span { font-size: 10px; }
+  .conversation-heading small { display: none; }
+  .message-list { min-height: 30px; max-height: none; height: auto; padding: 10px 12px; gap: 8px; }
+  .message-bubble { font-size: 11px; padding: 6px 9px; }
+  .message-avatar { width: 29px; height: 29px; }
+  .composer { padding: 8px 10px; gap: 6px; flex-shrink: 0; }
+  .composer textarea { height: 36px; min-height: 36px; padding: 7px 9px; font-size: 11px; }
+  .composer .primary-button { height: 28px; font-size: 9px; padding: 5px 9px; }
+  .composer-meta { font-size: 7px; gap: 5px; }
+}

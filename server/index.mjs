@@ -6,7 +6,7 @@ import { dirname, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { Server } from 'socket.io';
 
-const CHARACTER_IDS = new Set(['chiikawa', 'hachiware', 'usagi']);
+const CHARACTER_IDS = new Set(['chiikawa', 'hachiware', 'usagi', 'momonga', 'kurimanju', 'shisa', 'rakko', 'furuhonya']);
 const COLORS = ['#e99aaa', '#85b8e3', '#e5bf62', '#a8bd93', '#b5a0d4', '#e6a47b', '#77bcb5', '#be9c88'];
 const CODE_ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
 const DEFAULT_LIMITS = {

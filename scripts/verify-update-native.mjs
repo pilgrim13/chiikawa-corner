@@ -14,8 +14,9 @@ import { createHash, generateKeyPairSync, randomUUID, sign } from 'node:crypto';
 const run = promisify(execFile);
 const project = fileURLToPath(new URL('..', import.meta.url));
 const bootstrap = path.resolve(process.env.BOOTSTRAP_APP || path.join(project, '.runtime/update-bootstrap/Chiikawa Corner.app'));
-const archive = path.resolve(process.env.UPDATE_ZIP || path.join(project, 'release/Chiikawa-Corner-0.2.1-universal.zip'));
-const nextVersion = '0.2.1';
+const nextVersion = JSON.parse(await fs.readFile(path.join(project, 'package.json'), 'utf8')).version;
+const archive = path.resolve(process.env.UPDATE_ZIP || path.join(project, `release/Chiikawa-Corner-${nextVersion}-universal.zip`));
+const fromVersion = (await run('/usr/libexec/PlistBuddy', ['-c', 'Print :CFBundleShortVersionString', path.join(bootstrap, 'Contents/Info.plist')])).stdout.trim();
 const chatServer = 'http://127.0.0.1:47831';
 const timeout = 120_000;
 const results = path.join(project, 'test-results');
@@ -132,8 +133,8 @@ try {
   application.on('error', (error) => { diagnostics += `${error.message}\n`; });
   for (const stream of [application.stdout, application.stderr]) stream.on('data', (chunk) => { diagnostics = (diagnostics + chunk.toString()).slice(-16000); });
   ({ browser, panel } = await connectPanel(application.pid));
-  assert.equal((await panel.evaluate(() => window.corner.getConfig())).version, '0.2.0');
-  console.log('Native update: bootstrap 0.2.0 started');
+  assert.equal((await panel.evaluate(() => window.corner.getConfig())).version, fromVersion);
+  console.log(`Native update: bootstrap ${fromVersion} started`);
   const nickname = '업데이트검증';
   const proof = randomUUID();
   await panel.locator('#nickname').fill(nickname);
@@ -198,7 +199,7 @@ try {
     await panel.getByRole('button', { name: '나가기', exact: true }).click();
   }
   succeeded = true;
-  console.log(JSON.stringify({ ok: true, from: '0.2.0', to: nextVersion, checks: ['packaged bootstrap startup', 'signed full ZIP download', 'native bundle swap', 'new process + UI-ready acknowledgement', 'nickname/character/localStorage preserved', ...(roomBefore ? ['live room + messages resumed'] : [])], roomResume: roomBefore ? 'passed' : 'not run: no persistent relay before app launch', screenshots: ['update-native-before.png', 'update-native-after.png'] }, null, 2));
+  console.log(JSON.stringify({ ok: true, from: fromVersion, to: nextVersion, checks: ['packaged bootstrap startup', 'signed full ZIP download', 'native bundle swap', 'new process + UI-ready acknowledgement', 'nickname/character/localStorage preserved', ...(roomBefore ? ['live room + messages resumed'] : [])], roomResume: roomBefore ? 'passed' : 'not run: no persistent relay before app launch', screenshots: ['update-native-before.png', 'update-native-after.png'] }, null, 2));
 } catch (error) {
   console.error(`Native update test failed: ${error.message}`);
   if (diagnostics) console.error(diagnostics.slice(-6000));

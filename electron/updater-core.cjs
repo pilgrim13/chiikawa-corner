@@ -19,13 +19,13 @@ function validateUrl(value, allowHttp = false) {
   if ((url.protocol !== 'https:' && !(allowHttp && local && url.protocol === 'http:')) || url.username || url.password || url.hash) throw new Error('안전한 업데이트 주소가 아니에요.');
   return url;
 }
-function verifyManifest(envelope, publicKey, { currentVersion, allowHttp = false } = {}) {
+function verifyManifest(envelope, publicKey, { currentVersion, allowHttp = false, platform = 'darwin', arch = 'universal' } = {}) {
   if (!envelope || typeof envelope.payload !== 'string' || typeof envelope.signature !== 'string' || envelope.payload.length > 32000) throw new Error('업데이트 정보가 올바르지 않아요.');
   const payload = Buffer.from(envelope.payload, 'base64');
   const signature = Buffer.from(envelope.signature, 'base64');
   if (signature.length !== 64 || !crypto.verify(null, payload, publicKey, signature)) throw new Error('업데이트 서명을 확인할 수 없어요.');
   const data = JSON.parse(payload.toString('utf8'));
-  if (data.schema !== 1 || data.appId !== 'com.corner.chiikawa' || data.platform !== 'darwin' || data.arch !== 'universal') throw new Error('이 앱에 맞는 업데이트가 아니에요.');
+  if (data.schema !== 1 || data.appId !== 'com.corner.chiikawa' || data.platform !== platform || data.arch !== arch) throw new Error('이 앱에 맞는 업데이트가 아니에요.');
   versionParts(data.version);
   if (currentVersion) versionParts(currentVersion);
   validateUrl(data.url, allowHttp);

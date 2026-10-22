@@ -46,7 +46,7 @@ try {
  await page.getByRole('button',{name:'재시작하고 적용',exact:true}).click();
  await page.getByRole('heading',{name:'새 버전으로 다시 만날게'}).waitFor();assert.equal(await page.evaluate(()=>window.__updateCalls.install),1);
  const web=await browser.newPage({viewport:{width:680,height:650}});web.on('pageerror',err=>errors.push(err.message));await web.goto(appUrl);
- await web.getByRole('button',{name:'업데이트',exact:true}).click();await web.getByText('업데이트는 설치된 Mac 앱에서 할 수 있어.',{exact:false}).waitFor();
+ await web.getByRole('button',{name:'업데이트',exact:true}).click();await web.getByText('업데이트는 설치된 앱에서 할 수 있어.',{exact:false}).waitFor();
  await web.getByRole('button',{name:'알겠어'}).click();await web.getByRole('dialog').waitFor({state:'hidden'});
  assert.deepEqual(errors,[]);
  console.log(JSON.stringify({passed:true,checks:['no automatic check/install','subscription cleanup','focus trap','Escape closes and restores focus','check failure/retry','plaintext release notes','download progress','download continues when dialog closed','explicit restart install','browser guidance'],pageErrors:errors}));

@@ -5,12 +5,16 @@ const { pathToFileURL } = require('node:url');
 const { createUpdater, acknowledgeUpdate } = require('./updater.cjs');
 
 const testMode = process.env.CORNER_TEST === '1';
+const isMac = process.platform === 'darwin';
+const isWindows = process.platform === 'win32';
+const appId = 'com.corner.chiikawa';
 if (testMode && /^\d{2,5}$/.test(process.env.CORNER_TEST_DEBUG_PORT || '')) {
   app.commandLine.appendSwitch('remote-debugging-port', process.env.CORNER_TEST_DEBUG_PORT);
   app.commandLine.appendSwitch('remote-debugging-address', '127.0.0.1');
 }
 if (process.env.CORNER_USER_DATA) app.setPath('userData', process.env.CORNER_USER_DATA);
 app.setName('치이카와 모퉁이');
+if (isWindows) app.setAppUserModelId(appId);
 const config = require('./config.json');
 const serverUrl = process.env.CORNER_SERVER_URL || config.serverUrl;
 let panel, overlay, tray, localRelay, updater;
@@ -61,7 +65,7 @@ function updateTray() {
     { label: '모퉁이 열기', click: showPanel },
     { label: overlayVisible ? '캐릭터 잠깐 숨기기' : '캐릭터 다시 보기', click: toggleOverlay },
     { type: 'separator' },
-    { label: '입력창 열기: ⌘⇧Space', enabled: false },
+    { label: isMac ? '입력창 열기: ⌘⇧Space' : '입력창 열기: Ctrl+Shift+Space', enabled: false },
     { label: '완전히 종료', click: () => app.quit() },
   ]));
 }
@@ -88,13 +92,14 @@ async function ensureLocalRelay() {
 }
 async function start() {
   const updateConfig = testMode && process.env.CORNER_UPDATE_CONFIG ? JSON.parse(fs.readFileSync(process.env.CORNER_UPDATE_CONFIG, 'utf8')) : require('./update-config.json');
-  updater = createUpdater({ app, config: updateConfig, testMode, onState: (state) => { if (panel && !panel.isDestroyed()) panel.webContents.send('corner:update-state', state); } });
+  const platformUpdater = isWindows ? require('./updater-windows.cjs').createWindowsUpdater : createUpdater;
+  updater = platformUpdater({ app, config: updateConfig, testMode, onState: (state) => { if (panel && !panel.isDestroyed()) panel.webContents.send('corner:update-state', state); } });
   await ensureLocalRelay();
   const area = selectedDisplay().workArea;
   panel = new BrowserWindow({
     width: Math.min(1000, area.width - 40), height: Math.min(780, area.height - 40), minWidth: 680, minHeight: 560,
     title: '치이카와 모퉁이', backgroundColor: '#fffaf1', show: false,
-    titleBarStyle: 'hiddenInset', trafficLightPosition: { x: 20, y: 21 },
+    ...(isMac ? { titleBarStyle: 'hiddenInset', trafficLightPosition: { x: 20, y: 21 } } : { autoHideMenuBar: true, icon: path.join(__dirname, 'icon.ico') }),
     webPreferences: webPreferences(),
   });
   overlay = new BrowserWindow({
@@ -103,9 +108,10 @@ async function start() {
     alwaysOnTop: true, fullscreenable: false,
     webPreferences: { ...webPreferences(), backgroundThrottling: false },
   });
-  overlay.setAlwaysOnTop(true, 'floating');
+  if (isMac) overlay.setAlwaysOnTop(true, 'floating');
+  else overlay.setAlwaysOnTop(true);
   overlay.setIgnoreMouseEvents(true, { forward: true });
-  overlay.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: false });
+  if (isMac) overlay.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: false });
   protectWindow(panel); protectWindow(overlay);
   panel.once('ready-to-show', () => { if (process.env.CORNER_HEADLESS !== '1') showPanel(); });
   panel.on('close', (event) => { if (!quitting && !testMode) { event.preventDefault(); panel.hide(); } });
@@ -114,19 +120,19 @@ async function start() {
   screen.on('display-removed', positionOverlay);
   screen.on('display-metrics-changed', positionOverlay);
   await Promise.all([loadView(panel, 'panel'), loadView(overlay, 'overlay')]);
-  const trayIcon = nativeImage.createFromPath(path.join(__dirname, '../dist/characters/chiikawa.png')).resize({ width: 22, height: 22 });
+  const trayIcon = isWindows ? path.join(__dirname, 'icon.ico') : nativeImage.createFromPath(path.join(__dirname, '../dist/characters/chiikawa.png')).resize({ width: 22, height: 22 });
   tray = new Tray(trayIcon);
   tray.setToolTip('치이카와 모퉁이');
   tray.on('click', showPanel);
   updateTray();
   Menu.setApplicationMenu(Menu.buildFromTemplate([
-    { label: app.name, submenu: [{ role: 'about' }, { type: 'separator' }, { label: '모퉁이 열기', click: showPanel }, { role: 'hide' }, { role: 'quit' }] },
+    { label: isMac ? app.name : '파일', submenu: [{ role: 'about' }, { type: 'separator' }, { label: '모퉁이 열기', click: showPanel }, ...(isMac ? [{ role: 'hide' }] : []), { role: 'quit' }] },
     { label: '편집', submenu: [{ role: 'undo' }, { role: 'redo' }, { type: 'separator' }, { role: 'cut' }, { role: 'copy' }, { role: 'paste' }, { role: 'selectAll' }] },
     { label: '보기', submenu: [{ label: '캐릭터 숨기기 / 보기', click: toggleOverlay }, { role: 'resetZoom' }, { role: 'zoomIn' }, { role: 'zoomOut' }] },
   ]));
   if (!testMode) globalShortcut.register('CommandOrControl+Shift+Space', () => panel.isVisible() && panel.isFocused() ? panel.hide() : showPanel());
   // Confirm the local UI rendered and its IPC bridge is ready before removing the old bundle.
-  if (process.env.CORNER_UPDATE_TOKEN) {
+  if ((isMac || isWindows) && process.env.CORNER_UPDATE_TOKEN) {
     for (let i = 0; i < 100; i++) {
       if (await panel.webContents.executeJavaScript("Boolean(document.querySelector('.app-shell') && window.corner)").catch(() => false)) { acknowledgeUpdate(app); break; }
       await new Promise((resolve) => setTimeout(resolve, 50));
@@ -135,7 +141,7 @@ async function start() {
 }
 function fromPanel(event) { return panel && event.sender === panel.webContents; }
 function fromOwnWindow(event) { return fromPanel(event) || (overlay && event.sender === overlay.webContents); }
-ipcMain.handle('corner:config', () => ({ serverUrl, version: app.getVersion(), isDesktop: true }));
+ipcMain.handle('corner:config', () => ({ serverUrl, version: app.getVersion(), isDesktop: true, platform: process.platform }));
 ipcMain.handle('corner:update-state', (event) => fromPanel(event) ? updater.getState() : null);
 ipcMain.handle('corner:update-check', (event) => fromPanel(event) ? updater.check() : null);
 ipcMain.handle('corner:update-download', (event) => fromPanel(event) ? updater.download() : null);

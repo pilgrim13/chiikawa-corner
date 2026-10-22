@@ -3,6 +3,7 @@ import type { ChatMessage, Profile, RoomSnapshot } from '../shared/protocol';
 import { CHARACTERS, characterAsset, characterName } from './characters';
 import { DesktopPreview } from './Overlay';
 import { UpdatePanel } from './UpdatePanel';
+import { CharacterPicker } from './CharacterPicker';
 import { normalizeServer, parseInvitation, useRoom } from './useRoom';
 
 function readProfile(): Profile {
@@ -47,6 +48,7 @@ export function App() {
   const [endpoint, setEndpoint] = useState('');
   const [serverDraft, setServerDraft] = useState('');
   const [desktop, setDesktop] = useState(Boolean(window.corner));
+  const [desktopPlatform, setDesktopPlatform] = useState('');
   const [roomTab, setRoomTab] = useState<'create' | 'join'>('create');
   const [invitation, setInvitation] = useState('');
   const [queuedJoin, setQueuedJoin] = useState<{ endpoint: string; code: string; profile: Profile } | null>(null);
@@ -76,7 +78,7 @@ export function App() {
     (async () => {
       let fallback = import.meta.env.VITE_SERVER_URL || (location.protocol === 'file:' ? 'http://127.0.0.1:47831' : location.origin);
       if (window.corner) {
-        try { const config = await window.corner.getConfig(); fallback = config.serverUrl || fallback; if (!cancelled) setDesktop(config.isDesktop); }
+        try { const config = await window.corner.getConfig(); fallback = config.serverUrl || fallback; if (!cancelled) { setDesktop(config.isDesktop); setDesktopPlatform(config.platform || ''); } }
         catch { /* Browser preview can still use the environment URL. */ }
       }
       let saved = localStorage.getItem('corner.server') || fallback;
@@ -85,6 +87,10 @@ export function App() {
     })();
     return () => { cancelled = true; };
   }, []);
+  useEffect(() => {
+    document.documentElement.classList.toggle('mac-desktop-document', desktop && desktopPlatform === 'darwin');
+    return () => document.documentElement.classList.remove('mac-desktop-document');
+  }, [desktop, desktopPlatform]);
   useEffect(() => {
     setConnectionDelayed(false);
     if (network.connected || !endpoint) return;
@@ -166,7 +172,7 @@ export function App() {
         <span className="brand-mark"><Icon name="leaf" size={23} /></span>
         <span>치이카와 모퉁이<small>A LITTLE PLACE TOGETHER</small></span>
       </a>
-      <div className="header-actions"><span className={`status-pill ${network.connected && !isDemo ? 'online' : ''}`}><i />{status}</span><UpdatePanel desktop={desktop} /><span className="prototype-label">MAC PREVIEW</span></div>
+      <div className="header-actions"><span className={`status-pill ${network.connected && !isDemo ? 'online' : ''}`}><i />{status}</span><UpdatePanel desktop={desktop} /><span className="prototype-label">{desktopPlatform === 'win32' ? 'WINDOWS PREVIEW' : desktopPlatform === 'darwin' ? 'MAC PREVIEW' : 'PREVIEW'}</span></div>
     </header>
 
     {(network.error || network.notice) && <div className={network.error ? 'error-banner' : 'notice-banner'} role={network.error ? 'alert' : 'status'}>
@@ -184,7 +190,7 @@ export function App() {
         <section className="profile-panel">
           <div className="section-heading"><span className="step-number">01</span><div><h2>오늘의 나는 누구?</h2><p>친구들이 알아볼 이름과 캐릭터를 골라줘.</p></div></div>
           <label className="field" htmlFor="nickname">닉네임<input id="nickname" value={profile.nickname} onChange={(event) => setProfile({ ...profile, nickname: event.target.value })} maxLength={16} placeholder="어떻게 불러주면 될까?" autoComplete="nickname" /></label>
-          <div className="character-picker" role="group" aria-label="내 캐릭터 선택">{CHARACTERS.map((character) => <button key={character.id} className={`character-option ${profile.character === character.id ? 'selected' : ''}`} aria-pressed={profile.character === character.id} onClick={() => setProfile({ ...profile, character: character.id })}><span className="selection-dot" /><img className="character-image" src={characterAsset(character.id)} alt="" /><span className="character-name">{character.name}</span><span className="character-description">{character.note}</span></button>)}</div>
+          <CharacterPicker selected={profile.character} onSelect={(character) => setProfile({ ...profile, character })} />
         </section>
         <section className="room-panel">
           <div className="section-heading"><span className="step-number">02</span><div><h2>우리, 어디서 만날까?</h2><p>방 하나면 충분해. 최대 8명이 함께할 수 있어.</p></div></div>
@@ -194,7 +200,7 @@ export function App() {
         </section>
       </div>}
       {!network.pending && !queuedJoin && <div className="onboarding-actions"><span>아직 친구가 안 왔어도 괜찮아.</span><button className="subtle-button" onClick={startDemo}>먼저 혼자 둘러보기 <Icon name="arrow" size={15} /></button></div>}
-      <footer className="app-footer"><span>귀여운 건 같이 보면 더 귀여우니까.</span><span>{desktop ? 'macOS 바탕화면 프로토타입' : '브라우저 미리보기 · 바탕화면 기능은 Mac 앱에서'}</span></footer>
+      <footer className="app-footer"><span>귀여운 건 같이 보면 더 귀여우니까.</span><span>{desktop ? `${desktopPlatform === 'win32' ? 'Windows' : desktopPlatform === 'darwin' ? 'macOS' : '데스크톱'} 바탕화면 프로토타입` : '브라우저 미리보기 · 바탕화면 기능은 설치된 앱에서'}</span></footer>
     </> : <>
       {isDemo && <div className="demo-banner"><Icon name="spark" /><span><strong>혼자 둘러보기</strong> · 하루와 우쨔는 체험용 친구야. 실제로 연결된 사람은 없어.</span><button className="subtle-button" onClick={leaveRoom}>체험 마치기</button></div>}
       <section className="room-header"><div><span className="eyebrow">OUR LITTLE CORNER</span><h1>{isDemo ? '우리의 작은 모퉁이' : activeRoom.name || '우리의 작은 모퉁이'}</h1><p>{activeRoom.members.filter((member) => member.online).length}명의 작은 친구가 함께 있어{!isDemo && activeRoom.locked ? ' · 지금은 입장 잠금 중' : '.'}</p></div><div className="room-header-actions">{!isDemo && <><button className="room-code" title="초대 코드 복사" onClick={() => void copy(activeRoom.code, '초대 코드를 복사했어.')}><span>초대 코드</span><strong>{activeRoom.code}</strong><Icon name="copy" size={16} /></button><button className="primary-button" onClick={() => void copy(`치이카와 모퉁이 | ${endpoint} | ${activeRoom.code}`, '초대장을 복사했어. 친구에게 붙여넣어 보내줘!')}>친구 초대 <Icon name="copy" size={16} /></button></>}{!isDemo && <button className="subtle-button" onClick={leaveRoom}>나가기</button>}</div></section>
@@ -209,7 +215,7 @@ export function App() {
       </main><aside className="room-sidebar">
         <section><div className="section-heading"><h2>함께 있는 친구들 <span className="count-badge">{activeRoom.members.length}</span></h2></div><div className="member-list">{activeRoom.members.map((member) => <div className="member-row" key={member.id}><img className="member-avatar" src={characterAsset(member.character)} alt="" /><div className="member-info"><strong>{member.nickname}{member.id === memberId && <small>나</small>}</strong><span>{member.id === activeRoom.hostId ? '방장 · ' : ''}{member.online ? characterName(member.character) : '잠시 자리 비움'}</span></div><span className={`member-status ${member.online ? 'online' : ''}`} title={member.online ? '접속 중' : '오프라인'} />{isHost && !isDemo && member.id !== memberId && <details className="member-actions"><summary aria-label={`${member.nickname} 관리`}>···</summary><button className="subtle-button" disabled={network.busy || !member.online} onClick={() => void network.act('room:transfer', { memberId: member.id })}>방장 넘기기</button><button className="danger-button" disabled={network.busy} onClick={() => void network.act('room:kick', { memberId: member.id })}>방에서 내보내기</button></details>}</div>)}</div></section>
         {isHost && !isDemo && activeRoom.pending.length > 0 && <section className="pending-section"><h3>똑똑! 친구가 왔어 <span className="count-badge">{activeRoom.pending.length}</span></h3>{activeRoom.pending.map((request) => <div className="pending-card" key={request.id}><img className="member-avatar" src={characterAsset(request.character)} alt="" /><strong>{request.nickname}</strong><div><button className="primary-button" disabled={network.busy} onClick={() => void network.act('room:approve', { requestId: request.id })}>들어와!</button><button className="subtle-button" disabled={network.busy} onClick={() => void network.act('room:reject', { requestId: request.id })}>거절</button></div></div>)}</section>}
-        <section className="settings-panel"><div className="section-heading"><h2>내 바탕화면</h2><Icon name="settings" size={17} /></div><label className="settings-row"><span>조용히 함께 있기<small>말풍선 숨기기 · 대화는 기록에 남아</small></span><input type="checkbox" checked={quiet} onChange={(event) => setQuiet(event.target.checked)} /></label><label className="settings-row size-setting"><span>친구들 크기<small>{Math.round(size * 100)}%</small></span><input type="range" min="0.7" max="1.5" step="0.1" value={size} onChange={(event) => setSize(Number(event.target.value))} aria-label="캐릭터 크기" /></label>{desktop && <><label className="settings-row"><span>바탕화면 친구 숨기기</span><input type="checkbox" checked={overlayHidden} onChange={async () => { try { const visible = await window.corner!.toggleOverlay(); setOverlayHidden(!visible); } catch { network.setError('바탕화면 표시를 바꾸지 못했어.'); } }} /></label>{displays.length > 1 && <label className="field" htmlFor="display-select">친구들이 놀 모니터<select id="display-select" value={selectedDisplay} onChange={async (event) => { const value = event.target.value; try { await window.corner!.selectDisplay(Number(value)); setSelectedDisplay(value); } catch { network.setError('모니터를 바꾸지 못했어.'); } }}><option value="" disabled>기본 모니터</option>{displays.map((display) => <option value={display.id} key={display.id}>{display.label}</option>)}</select></label>}<button className="secondary-button" onClick={() => window.corner?.hidePanel()}>창 접고 바탕화면에서 만나기</button><p className="settings-hint">캐릭터를 누르면 대화창이 다시 열려.<br />메뉴바 아이콘에서도 열 수 있어.</p></>}{!desktop && <p className="settings-hint">지금은 브라우저 미리보기야.<br />Mac 앱에서는 친구들이 실제 바탕화면을 산책해.</p>}</section>
+        <section className="settings-panel"><div className="section-heading"><h2>내 바탕화면</h2><Icon name="settings" size={17} /></div><label className="settings-row"><span>조용히 함께 있기<small>말풍선 숨기기 · 대화는 기록에 남아</small></span><input type="checkbox" checked={quiet} onChange={(event) => setQuiet(event.target.checked)} /></label><label className="settings-row size-setting"><span>친구들 크기<small>{Math.round(size * 100)}%</small></span><input type="range" min="0.7" max="1.5" step="0.1" value={size} onChange={(event) => setSize(Number(event.target.value))} aria-label="캐릭터 크기" /></label>{desktop && <><label className="settings-row"><span>바탕화면 친구 숨기기</span><input type="checkbox" checked={overlayHidden} onChange={async () => { try { const visible = await window.corner!.toggleOverlay(); setOverlayHidden(!visible); } catch { network.setError('바탕화면 표시를 바꾸지 못했어.'); } }} /></label>{displays.length > 1 && <label className="field" htmlFor="display-select">친구들이 놀 모니터<select id="display-select" value={selectedDisplay} onChange={async (event) => { const value = event.target.value; try { await window.corner!.selectDisplay(Number(value)); setSelectedDisplay(value); } catch { network.setError('모니터를 바꾸지 못했어.'); } }}><option value="" disabled>기본 모니터</option>{displays.map((display) => <option value={display.id} key={display.id}>{display.label}</option>)}</select></label>}<button className="secondary-button" onClick={() => window.corner?.hidePanel()}>창 접고 바탕화면에서 만나기</button><p className="settings-hint">캐릭터를 누르면 대화창이 다시 열려.<br />{desktopPlatform === 'win32' ? '작업표시줄의 트레이 아이콘에서도 열 수 있어.' : '메뉴바 아이콘에서도 열 수 있어.'}<span className="settings-shortcut">빠르게 열기 <kbd>{desktopPlatform === 'win32' ? 'Ctrl+Shift+Space' : '⌘⇧Space'}</kbd></span></p></>}{!desktop && <p className="settings-hint">지금은 브라우저 미리보기야.<br />설치된 앱에서는 친구들이 실제 바탕화면을 산책해.</p>}</section>
         {isHost && !isDemo && <details className="settings-panel room-controls"><summary>방장 설정</summary><label className="settings-row"><span>새로운 입장 잠그기</span><input type="checkbox" checked={activeRoom.locked} disabled={network.busy} onChange={(event) => void network.act('room:lock', { locked: event.target.checked })} /></label><button className="secondary-button" disabled={network.busy} onClick={() => void network.act('room:rotate-code', {}).then((result) => { if (result) setToast('새 초대 코드로 바꿨어. 이전 코드는 사용할 수 없어.'); })}>초대 코드 새로 만들기</button></details>}
       </aside></div>
     </>}

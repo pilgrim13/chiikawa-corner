@@ -44,6 +44,16 @@ async function fixture(t, options = {}) {
 }
 const hostProfile = { nickname: '치이', character: 'chiikawa' };
 const guestProfile = { nickname: '하치', character: 'hachiware' };
+
+test('all eight selectable characters can create a room and appear in snapshots', async (t) => {
+  const f = await fixture(t);
+  const ids = ['chiikawa', 'hachiware', 'usagi', 'momonga', 'kurimanju', 'shisa', 'rakko', 'furuhonya'];
+  for (const character of ids) {
+    const client = await f.client();
+    const created = await success(client, 'room:create', { nickname: character, character });
+    assert.equal(created.room.members[0].character, character);
+  }
+});
 async function createRoom(host) { return success(host, 'room:create', hostProfile); }
 async function joinRoom(host, guest, code, profile = guestProfile) {
   const pending = await success(guest, 'room:join', { code, ...profile });
