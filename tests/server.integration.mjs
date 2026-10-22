@@ -49,11 +49,107 @@ test('all eight selectable characters can create a room and appear in snapshots'
   const f = await fixture(t);
   const ids = ['chiikawa', 'hachiware', 'usagi', 'momonga', 'kurimanju', 'shisa', 'rakko', 'furuhonya'];
   for (const character of ids) {
-    const client = await f.client();
+    const client = await f.client({ auth: { characterSet: 8 } });
     const created = await success(client, 'room:create', { nickname: character, character });
     assert.equal(created.room.members[0].character, character);
   }
 });
+test('legacy and eight-character clients receive compatible create, pending, approval, state, and resume snapshots', async (t) => {
+  const f = await fixture(t);
+  const legacy = await f.client();
+  const modern = await f.client({ auth: { characterSet: 8 } });
+  const legacyGuest = await f.client();
+  // A saved new-character profile may be resumed/opened by an older app.
+  const created = await success(legacy, 'room:create', { nickname: '랏코 방장', character: 'rakko' });
+  assert.equal(created.room.members[0].character, 'chiikawa');
+
+  const legacyPending = nextEvent(legacy, 'room:state', (room) => room.pending.length === 1);
+  const requestToJoin = await success(modern, 'room:join', { code: created.room.code, nickname: '모몽가 친구', character: 'momonga' });
+  assert.equal((await legacyPending).pending[0].character, 'chiikawa');
+  const modernApproved = nextEvent(modern, 'join:approved');
+  const legacyJoinedState = nextEvent(legacy, 'room:state', (room) => room.members.length === 2);
+  await success(legacy, 'room:approve', { requestId: requestToJoin.requestId });
+  const joined = await modernApproved;
+  assert.deepEqual(joined.room.members.map((member) => member.character), ['rakko', 'momonga']);
+  assert.deepEqual((await legacyJoinedState).members.map((member) => member.character), ['chiikawa', 'chiikawa']);
+
+  const pendingForOldHost = nextEvent(legacy, 'room:state', (room) => room.pending.length === 1);
+  const secondRequest = await success(legacyGuest, 'room:join', { code: created.room.code, nickname: '쿠리만쥬 친구', character: 'kurimanju' });
+  assert.equal((await pendingForOldHost).pending[0].character, 'chiikawa');
+  const pendingForNewHost = nextEvent(modern, 'room:state', (room) => room.hostId === joined.session.memberId && room.pending.length === 1);
+  await success(legacy, 'room:transfer', { memberId: joined.session.memberId });
+  assert.equal((await pendingForNewHost).pending[0].character, 'kurimanju', 'pending projection must not alter the original request');
+  const legacyApproved = nextEvent(legacyGuest, 'join:approved');
+  const modernJoinedState = nextEvent(modern, 'room:state', (room) => room.members.length === 3);
+  await success(modern, 'room:approve', { requestId: secondRequest.requestId });
+  assert.deepEqual((await legacyApproved).room.members.map((member) => member.character), ['chiikawa', 'chiikawa', 'chiikawa']);
+  assert.deepEqual((await modernJoinedState).members.map((member) => member.character), ['rakko', 'momonga', 'kurimanju']);
+
+  for (const character of ['shisa', 'furuhonya']) {
+    const nickname = `선택-${character}`;
+    const oldView = nextEvent(legacy, 'room:state', (room) => room.members.some((member) => member.nickname === nickname));
+    const newView = nextEvent(modern, 'room:state', (room) => room.members.some((member) => member.nickname === nickname));
+    await success(modern, 'profile:update', { nickname, character });
+    assert.equal((await oldView).members.find((member) => member.id === joined.session.memberId).character, 'chiikawa');
+    assert.equal((await newView).members.find((member) => member.id === joined.session.memberId).character, character);
+  }
+  const oldResume = await success(legacy, 'room:resume', created.session);
+  assert.deepEqual(oldResume.room.members.map((member) => member.character), ['chiikawa', 'chiikawa', 'chiikawa']);
+  const upgradedLegacy = await f.client({ auth: { characterSet: 8 } });
+  const newResume = await success(upgradedLegacy, 'room:resume', created.session);
+  assert.deepEqual(newResume.room.members.map((member) => member.character), ['rakko', 'furuhonya', 'kurimanju'], 'a newly upgraded client must recover real server-side choices');
+  assertNoPrivateFields(oldResume.room);
+  assertNoPrivateFields(newResume.room);
+});
+
+test('mixed-version chat projects live events, history, and retry ACKs without rewriting stored messages', async (t) => {
+  const f = await fixture(t);
+  const modern = await f.client({ auth: { characterSet: 8 } });
+  const legacy = await f.client();
+  const created = await success(modern, 'room:create', { nickname: '책 친구', character: 'furuhonya' });
+  const joined = await joinRoom(modern, legacy, created.room.code);
+  assert.deepEqual(joined.room.members.map((member) => member.character), ['chiikawa', 'hachiware']);
+
+  const oldLive = nextEvent(legacy, 'chat:message');
+  const newLive = nextEvent(modern, 'chat:message');
+  const newPayload = { clientId: randomUUID(), text: '다 같이 책 읽자' };
+  const newAck = await success(modern, 'chat:send', newPayload);
+  const [oldMessage, newMessage] = await Promise.all([oldLive, newLive]);
+  assert.equal(oldMessage.character, 'chiikawa');
+  assert.equal(newMessage.character, 'furuhonya');
+  assert.equal(newAck.message.character, 'furuhonya');
+  assert.equal(oldMessage.id, newMessage.id);
+  assert.equal((await success(modern, 'chat:send', newPayload)).message.id, newAck.message.id);
+
+  await success(legacy, 'profile:update', { nickname: '시사 친구', character: 'shisa' });
+  const oldSenderLive = nextEvent(legacy, 'chat:message');
+  const newReceiverLive = nextEvent(modern, 'chat:message');
+  const oldPayload = { clientId: randomUUID(), text: '응, 같이 읽어!' };
+  const oldAck = await success(legacy, 'chat:send', oldPayload);
+  assert.equal(oldAck.message.character, 'chiikawa');
+  assert.equal((await oldSenderLive).character, 'chiikawa');
+  assert.equal((await newReceiverLive).character, 'shisa');
+  assert.deepEqual((await success(legacy, 'chat:send', oldPayload)).message, oldAck.message);
+
+  const oldHistory = await success(legacy, 'room:resume', joined.session);
+  const newHistory = await success(modern, 'room:resume', created.session);
+  assert.deepEqual(oldHistory.room.messages.map((message) => message.character), ['chiikawa', 'chiikawa']);
+  assert.deepEqual(newHistory.room.messages.map((message) => message.character), ['furuhonya', 'shisa']);
+
+  const downgraded = await f.client();
+  await success(downgraded, 'room:resume', created.session);
+  const oldRetry = await success(downgraded, 'chat:send', newPayload);
+  assert.equal(oldRetry.message.id, newAck.message.id);
+  assert.equal(oldRetry.message.character, 'chiikawa');
+  const upgraded = await f.client({ auth: { characterSet: 8 } });
+  const restored = await success(upgraded, 'room:resume', created.session);
+  const newRetry = await success(upgraded, 'chat:send', newPayload);
+  assert.equal(newRetry.message.id, newAck.message.id);
+  assert.equal(newRetry.message.character, 'furuhonya');
+  assert.equal(restored.room.messages.length, 2);
+  assert.deepEqual(restored.room.messages.map((message) => message.character), ['furuhonya', 'shisa']);
+});
+
 async function createRoom(host) { return success(host, 'room:create', hostProfile); }
 async function joinRoom(host, guest, code, profile = guestProfile) {
   const pending = await success(guest, 'room:join', { code, ...profile });

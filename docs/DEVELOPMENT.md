@@ -4,25 +4,25 @@
 
 이 문서는 구현·개발 명령과 버전별 검증 기록을 보관한다. 공개 배포 파일과 버전은 [GitHub Releases](https://github.com/pilgrim13/chiikawa-corner/releases)를 기준으로 확인한다. 아래 모든 명령의 작업 폴더는 저장소 루트다.
 
-친구 캐릭터가 Mac 바탕화면 아래에서 산책하고, 말풍선으로 대화하는 작은 앱.
+친구 캐릭터가 Mac·Windows 바탕화면 구석에서 산책하고, 말풍선으로 대화하는 작은 앱.
 
 ## 설치 흐름
 
-친구용 설치파일은 [최신 Mac DMG](https://github.com/pilgrim13/chiikawa-corner/releases/latest/download/Chiikawa-Corner-mac.dmg)에서 배포한다. 개발 Mac의 `release/` 경로는 다른 컴퓨터에서 직접 열 수 없다. 초기 0.1.0에서 사용한 임시 중계의 `/downloads/` 경로는 신규 다운로드 안내에 사용하지 않는다.
+친구용 설치파일은 같은 [GitHub 릴리스](https://github.com/pilgrim13/chiikawa-corner/releases/latest)에 Mac DMG와 Windows EXE를 함께 올린다. 개발 Mac의 `release/` 경로는 다른 컴퓨터에서 직접 열 수 없다. 초기 0.1.0에서 사용한 임시 중계의 `/downloads/` 경로는 신규 다운로드 안내에 사용하지 않는다.
 
-1. 내려받은 DMG를 열고 **Chiikawa Corner** 앱을 Applications로 끌어 놓는다.
+1. Mac은 [DMG](https://github.com/pilgrim13/chiikawa-corner/releases/latest/download/Chiikawa-Corner-mac.dmg)를 열고 **Chiikawa Corner** 앱을 Applications로 끌어 놓는다. Windows는 [EXE](https://github.com/pilgrim13/chiikawa-corner/releases/latest/download/Chiikawa-Corner-windows.exe)를 실행해 사용자 계정에 설치한다.
 2. **치이카와 모퉁이**를 실행하고 닉네임·캐릭터를 고른다.
 3. **우리 방 만들기 → 친구 초대**를 누른다. 친구에게 앱과 복사된 초대장을 전달한다.
 4. 친구는 **초대받았어요**에 초대장 전체를 붙여넣고, 방장은 **들어와!**를 누른다.
-5. **창 접고 바탕화면에서 만나기**를 누르면 캐릭터만 남는다. 캐릭터 클릭, 메뉴바 아이콘, `⌘⇧Space`로 대화창을 다시 연다.
+5. **창 접고 바탕화면에서 만나기**를 누르면 캐릭터만 남는다. 캐릭터 클릭, Mac 메뉴바/Windows 트레이 아이콘, Mac `⌘⇧Space`/Windows `Ctrl+Shift+Space`로 대화창을 다시 연다.
 
-친구가 없어도 **먼저 혼자 둘러보기**로 세 캐릭터와 말풍선을 체험할 수 있다. 체험 친구는 실제 접속자가 아니며 화면에 명시된다. 별도 Node.js·터미널 설치가 필요 없는 앱이다.
+친구가 없어도 **먼저 혼자 둘러보기**로 캐릭터와 말풍선을 체험할 수 있다. 체험 친구는 실제 접속자가 아니며 화면에 명시된다. 별도 Node.js·터미널 설치가 필요 없는 앱이다.
 
 0.1.0 배포는 **macOS 13 이상, Apple Silicon·Intel 실행 파일을 함께 담은 통합 Mac 프로토타입**이다. 실제 실행 검증은 Apple Silicon에서 했다. 개발자 ID 인증서가 없어 Apple 공증은 하지 않았다. 앱 무결성용 ad-hoc 서명과 Apple이 확인한 배포 서명은 다르다. 다른 Mac에서 처음 실행할 때 차단된다면 해당 파일을 확인한 뒤 macOS **시스템 설정 → 개인정보 보호 및 보안 → 그래도 열기**를 사용한다. 시스템 보안 전체를 끄는 방식은 사용하지 않는다.
 
 ## 현재 구현
 
-- 치이카와·하치와레·우사기: 같은 그림체의 투명 PNG, 캐릭터 중복 선택 가능
+- 치이카와·하치와레·우사기·모몽가·쿠리만쥬·시사·랏코·후루혼야: 같은 그림체의 투명 PNG, 캐릭터 중복 선택 가능
 - 최대 8인 임시방, 8자리 초대코드, 초대장으로 서버 주소 자동 연결
 - 방장 승인·거절·추방·입장 잠금·초대코드 변경·방장 넘기기
 - 200자 채팅, 최근 100개 기록, 전송 확인·중복 제거, 한국어 IME 입력
@@ -55,6 +55,7 @@ npm run typecheck
 npm test
 node scripts/verify-electron.mjs
 npm run package:mac
+npm run package:win # Windows x64에서 실행
 ```
 
 패키징 후 `CORNER_EXECUTABLE="실제 .app/Contents/MacOS/Chiikawa Corner" node scripts/verify-electron.mjs`로 설치파일의 네이티브 동작을 확인할 수 있다. `TEST_SERVER_URL`로 시험할 서버를 고른다. 개발 서버가 켜진 상태에서 `scripts/verify-browser.mjs`, `scripts/verify-edge-cases.mjs`, `scripts/verify-ime.mjs`로 Chrome 두 사용자·재접속·한글 입력 검증도 재실행할 수 있다.
@@ -67,7 +68,7 @@ npm run package:mac
 
 앱의 업데이트 화면은 다운로드와 적용을 분리한다. 사용자가 **업데이트 확인 → 업데이트 다운로드 → 재시작하고 적용**을 선택한다. 0.1.0에는 이 기능이 없으므로 DMG로 한 번 교체해야 한다.
 
-`scripts/release-sign.swift`는 현재 Mac의 Keychain 서비스 `com.corner.chiikawa.release-signing`, 계정 `ed25519-v1`만 조회한다. 잠금·접근 거부·형식 오류에서는 종료하고, 해당 항목이 없다는 조회 결과일 때만 Ed25519 개인키를 생성해 Keychain에 보관한다. 개인키는 파일·로그·명령 인자로 내보내지 않는다.
+`scripts/release-sign.swift`는 현재 Mac의 Keychain 서비스 `com.corner.chiikawa.release-signing`, 계정 `ed25519-v1`만 조회한다. 잠금·접근 거부·형식 오류에서는 종료하고, 해당 항목이 없다는 조회 결과일 때만 Ed25519 개인키를 생성해 Keychain에 보관한다. 개인키는 파일·로그·명령 인자로 내보내지 않는다. Windows 빌드에도 동일한 배포 공개키를 앱에 고정하고, 설치파일 해시를 이 Mac에서 서명한다.
 
 ```sh
 # 공개키만 출력한다. Keychain이 잠겨 있으면 먼저 이 Mac에서 잠금을 해제한다.
@@ -76,15 +77,22 @@ swift scripts/release-sign.swift public
 # 서명·버전·universal 구성과 ZIP 내부 앱까지 검사한 뒤 로컬 피드를 준비한다.
 node scripts/publish-update.mjs \
   --app "release/mac-universal/Chiikawa Corner.app" \
-  --zip "release/Chiikawa-Corner-0.2.1-universal.zip" \
-  --version 0.2.1 \
-  --url "https://github.com/pilgrim13/chiikawa-corner/releases/download/v0.2.1/Chiikawa-Corner-0.2.1-universal.zip" \
+  --zip "release/Chiikawa-Corner-0.3.0-universal.zip" \
+  --version 0.3.0 \
+  --url "https://github.com/pilgrim13/chiikawa-corner/releases/download/v0.3.0/Chiikawa-Corner-0.3.0-universal.zip" \
+  --notes "업데이트 내용"
+
+# Windows CI가 실제 설치·업데이트를 통과한 EXE를 내려받은 뒤 같은 키로 서명한다.
+node scripts/publish-windows-update.mjs \
+  --exe ".runtime/windows-artifact/Chiikawa-Corner-0.3.0-windows-x64-Setup.exe" \
+  --version 0.3.0 \
+  --url "https://github.com/pilgrim13/chiikawa-corner/releases/latest/download/Chiikawa-Corner-windows.exe" \
   --notes "업데이트 내용"
 ```
 
-위 명령은 **업로드하지 않고** `release-feed/latest.json`과 ZIP을 준비한다. 실제 릴리스 버전과 앱의 `CFBundleShortVersionString`이 같아야 한다. ZIP 최대 크기는 1 GiB, 설명은 6,000자다. 같은 버전의 다른 내용이나 이전 버전으로 `latest.json`을 덮어쓰지 않는다.
+위 명령은 **업로드하지 않고** `release-feed/latest.json`·`win-latest.json`과 검증된 ZIP·EXE를 준비한다. 실제 릴리스 버전과 앱 버전이 같아야 한다. 파일 최대 크기는 1 GiB, 설명은 6,000자다. 같은 버전의 다른 내용이나 이전 버전으로 피드를 덮어쓰지 않는다. Windows 릴리스 설치파일은 `Chiikawa-Corner-windows.exe` 이름으로 올린다.
 
-`latest.json`의 `payload`는 원본 JSON 바이트의 Base64이고, `signature`는 그 바이트의 Ed25519 서명이다. 내용은 앱 ID·버전·플랫폼·universal 아키텍처·다운로드 URL·크기·SHA-256·릴리스 설명을 포함한다. 앱에 넣은 공개키와 실제 배포 키, 피드 URL이 일치해야 한다.
+피드의 `payload`는 원본 JSON 바이트의 Base64이고, `signature`는 그 바이트의 Ed25519 서명이다. 내용은 앱 ID·버전·플랫폼·아키텍처·다운로드 URL·크기·SHA-256·릴리스 설명을 포함한다. 앱에 넣은 공개키와 실제 배포 키, 피드 URL이 일치해야 한다. Windows는 별도 PowerShell 프로세스가 기존 앱 종료 후 NSIS를 조용히 설치하고 새 앱 시작 확인을 남긴다.
 
 앱 실행 시 사용하는 공개 설정만 저장소에 넣는다. Keychain 개인키, 배포 자격증명, 실제 사용자 채팅이나 테스트 세션은 커밋하지 않는다. `docs/preview.png`는 가상 친구 세 명의 체험 화면이다.
 
@@ -95,6 +103,14 @@ node scripts/verify-update-ui.mjs
 ```
 
 위 도구의 존재와 통과한 개별 검증은 공개 서버에서의 다운로드·재시작·배포 완료와 별개다. 릴리스마다 설치파일·피드 서명·실제 업데이트 결과를 다시 확인한다.
+
+## 0.3.0 검증 — 2026-10-22
+
+Mac mini에서 8종 캐릭터·혼합 버전 방 입장 검사, updater의 서명·해시·실패 복구를 포함한 자동 테스트 **43개**와 타입 검사를 통과했다. 1000×780 및 680×560 UI에서 8종 선택과 채팅 입력 영역을 확인했다. Mac universal 앱의 ad-hoc 코드 서명·arm64/x86_64 구성도 확인했다.
+
+실제 공개 **0.2.1 DMG 설치본 → 0.3.0**을 격리된 앱 복사본으로 업데이트해 새 프로세스 시작, 설정·기존 방·채팅 복원을 확인했다. Windows 검증은 `.github/workflows/windows.yml`에서 x64 NSIS 설치본 0.2.9 → 0.3.0 버튼 업데이트와 새 앱 시작·방 복원 뒤 일반 기능 smoke까지 진행한다. Windows 빌드의 배포 서명키는 GitHub Actions로 보내지 않는다.
+
+구버전과 신버전은 같은 방에 참여할 수 있다. 0.2.1 이하 앱에 없는 새 캐릭터는 서버가 기본 치이카와 모습으로 보내고, 0.3.0 앱에는 원래 캐릭터를 보낸다. 서버는 메모리 기반이므로 새 서버 코드 적용 시 이미 열린 방은 보존할 수 없고, 이용 중인 방이 없을 때 재시작한다.
 
 ## 0.2.1 검증 — 2026-10-22
 
@@ -112,6 +128,6 @@ Mac mini Apple Silicon에서 타입 검사와 자동 테스트 **39개**를 통�
 
 패키징 도구의 한글 NFC/NFD Helper 이름 불일치를 피하기 위해 내부 제품명은 `Chiikawa Corner`, 표시명과 UI는 `치이카와 모퉁이`로 분리했다. 이 설정은 Helper 프로세스 탐색에 영향을 주므로 단순히 한글 productName으로 되돌리지 않는다.
 
-다음 단계는 상시 중계 주소 마련, Apple Developer ID 서명·공증, 실제 친구의 별도 Mac 현장 테스트다. Intel Mac·Windows·전체 화면 앱·다중 모니터 실물 테스트는 아직 완료하지 않았다. Windows 포팅 가능한 Electron 구조와 빌드 설정은 유지했다.
+다음 단계는 상시 중계 주소 마련, Apple Developer ID 서명·공증, Windows 코드 서명, 실제 친구의 별도 기기 테스트다. Intel Mac·전체 화면 앱·다중 모니터 실물 테스트는 아직 완료하지 않았다.
 
 캐릭터 그림은 built-in imagegen으로 한 스타일 기준으로 생성했다. 정면 전신·초콜릿색 균일 윤곽선·평면 파스텔·분홍 볼·투명 배경·그림자 없음으로 맞추고, 치이카와 이미지를 나머지 두 캐릭터의 스타일 참고로 사용했다.

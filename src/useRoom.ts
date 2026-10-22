@@ -58,7 +58,7 @@ export function useRoom(endpoint: string) {
   }, []);
   useEffect(() => {
     if (!endpoint) return;
-    const socket = io(endpoint, { autoConnect: false, reconnection: true, timeout: 7000 });
+    const socket = io(endpoint, { autoConnect: false, reconnection: true, timeout: 7000, auth: { characterSet: 8 } });
     let disposed = false;
     let retryTimer: number | undefined;
     let connectionVersion = 0;

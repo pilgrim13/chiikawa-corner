@@ -7,6 +7,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { Server } from 'socket.io';
 
 const CHARACTER_IDS = new Set(['chiikawa', 'hachiware', 'usagi', 'momonga', 'kurimanju', 'shisa', 'rakko', 'furuhonya']);
+const LEGACY_CHARACTER_IDS = new Set(['chiikawa', 'hachiware', 'usagi']);
 const COLORS = ['#e99aaa', '#85b8e3', '#e5bf62', '#a8bd93', '#b5a0d4', '#e6a47b', '#77bcb5', '#be9c88'];
 const CODE_ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
 const DEFAULT_LIMITS = {
@@ -107,22 +108,30 @@ export function createRoomServer(options = {}) {
   }, 60_000);
   bucketCleanup.unref();
 
-  const publicMember = (member) => ({
-    id: member.id, nickname: member.nickname, character: member.character,
+  function characterFor(character, viewer) {
+    const characterSet = viewer?.handshake.auth?.characterSet;
+    // Older apps only ship three image files. Project outgoing data per socket;
+    // a member may reconnect from either version without losing the real choice.
+    return (Number.isInteger(characterSet) && characterSet >= 8) || LEGACY_CHARACTER_IDS.has(character) ? character : 'chiikawa';
+  }
+  const publicMember = (member, viewer) => ({
+    id: member.id, nickname: member.nickname, character: characterFor(member.character, viewer),
     color: member.color, online: Boolean(member.socketId), joinedAt: member.joinedAt,
   });
-  const publicRequest = (request) => ({ id: request.id, nickname: request.nickname, character: request.character, requestedAt: request.requestedAt });
+  const publicRequest = (request, viewer) => ({ id: request.id, nickname: request.nickname, character: characterFor(request.character, viewer), requestedAt: request.requestedAt });
+  const messageFor = (message, viewer) => ({ ...message, character: characterFor(message.character, viewer) });
   const sessionFor = (room, member) => ({ memberId: member.id, token: member.token, roomId: room.id });
-  const snapshot = (room, viewerId) => ({
+  const snapshot = (room, viewerId, viewer) => ({
     id: room.id, code: room.code, name: room.name, hostId: room.hostId, locked: room.locked,
-    members: [...room.members.values()].map(publicMember),
-    messages: [...room.messages],
-    pending: viewerId === room.hostId ? [...room.pending.values()].map(publicRequest) : [],
+    members: [...room.members.values()].map((member) => publicMember(member, viewer)),
+    messages: room.messages.map((message) => messageFor(message, viewer)),
+    pending: viewerId === room.hostId ? [...room.pending.values()].map((request) => publicRequest(request, viewer)) : [],
   });
   function broadcastState(room) {
     if (closing) return;
     for (const member of room.members.values()) {
-      if (member.socketId) io.to(member.socketId).emit('room:state', snapshot(room, member.id));
+      const viewer = member.socketId && io.sockets.sockets.get(member.socketId);
+      viewer?.emit('room:state', snapshot(room, member.id, viewer));
     }
   }
   function memberContext(socket, hostOnly = false) {
@@ -259,7 +268,7 @@ export function createRoomServer(options = {}) {
       codes.set(room.code, room.id);
       const member = newMember(room, socket, profile);
       room.hostId = member.id;
-      return { room: snapshot(room, member.id), session: sessionFor(room, member) };
+      return { room: snapshot(room, member.id, socket), session: sessionFor(room, member) };
     });
 
     handle('room:join', (payload) => {
@@ -309,7 +318,7 @@ export function createRoomServer(options = {}) {
       electHost(room);
       updateEmptyTimer(room);
       broadcastState(room);
-      return { room: snapshot(room, member.id), session: sessionFor(room, member) };
+      return { room: snapshot(room, member.id, socket), session: sessionFor(room, member) };
     });
 
     handle('room:approve', ({ requestId }) => {
@@ -322,7 +331,7 @@ export function createRoomServer(options = {}) {
       if (room.members.size >= maxMembers) fail('ROOM_FULL', `방에는 ${maxMembers}명까지 함께 있을 수 있어.`);
       removePending(room, requestId);
       const member = newMember(room, guest, { nickname: request.nickname, character: request.character });
-      guest.emit('join:approved', { room: snapshot(room, member.id), session: sessionFor(room, member) });
+      guest.emit('join:approved', { room: snapshot(room, member.id, guest), session: sessionFor(room, member) });
       broadcastState(room);
       return {};
     });
@@ -398,7 +407,7 @@ export function createRoomServer(options = {}) {
       if (typeof clientId !== 'string' || !/^[A-Za-z0-9._:-]{1,100}$/u.test(clientId)) fail('INVALID_MESSAGE_ID', '메시지 번호를 만들지 못했어. 다시 보내 줘.');
       if (typeof text !== 'string' || !text.trim() || countCharacters(text.trim()) > maxTextLength || text.includes('\u0000')) fail('INVALID_MESSAGE', `메시지는 1~${maxTextLength}자로 입력해 줘.`);
       const previous = member.sent.get(clientId);
-      if (previous) return { message: previous };
+      if (previous) return { message: messageFor(previous, socket) };
       limit('chat', `${room.id}:${member.id}`);
       const message = { id: randomUUID(), memberId: member.id, nickname: member.nickname, character: member.character, text: text.trim(), sentAt: Date.now(), kind: 'chat' };
       member.sent.set(clientId, message);
@@ -406,8 +415,11 @@ export function createRoomServer(options = {}) {
       if (member.sent.size > 1000) member.sent.delete(member.sent.keys().next().value);
       room.messages.push(message);
       if (room.messages.length > maxMessages) room.messages.splice(0, room.messages.length - maxMessages);
-      for (const recipient of room.members.values()) if (recipient.socketId) io.to(recipient.socketId).emit('chat:message', message);
-      return { message };
+      for (const recipient of room.members.values()) {
+        const viewer = recipient.socketId && io.sockets.sockets.get(recipient.socketId);
+        viewer?.emit('chat:message', messageFor(message, viewer));
+      }
+      return { message: messageFor(message, socket) };
     });
 
     socket.on('disconnect', () => {

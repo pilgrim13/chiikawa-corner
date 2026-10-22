@@ -1,17 +1,17 @@
 <div align="center">
 
-<img src="public/characters/chiikawa.png" width="112" alt="치이카와" /><img src="public/characters/hachiware.png" width="112" alt="하치와레" /><img src="public/characters/usagi.png" width="112" alt="우사기" />
+<img src="public/characters/chiikawa.png" width="94" alt="치이카와" /><img src="public/characters/hachiware.png" width="94" alt="하치와레" /><img src="public/characters/usagi.png" width="94" alt="우사기" /><img src="public/characters/momonga.png" width="94" alt="모몽가" /><img src="public/characters/kurimanju.png" width="94" alt="쿠리만쥬" /><img src="public/characters/shisa.png" width="94" alt="시사" /><img src="public/characters/rakko.png" width="94" alt="랏코" /><img src="public/characters/furuhonya.png" width="94" alt="후루혼야" />
 
 # 치이카와 모퉁이
 
 **각자의 하루, 같은 모퉁이.**
 
 할 일을 하는 동안에도, 좋아하는 친구들은 곁에.<br />
-Mac 바탕화면 구석을 산책하는 작은 친구들과 말풍선으로 수다 떨어요.
+Mac·Windows 바탕화면 구석을 산책하는 작은 친구들과 말풍선으로 수다 떨어요.
 
-<a href="https://github.com/pilgrim13/chiikawa-corner/releases/latest/download/Chiikawa-Corner-mac.dmg"><img src="docs/download.svg" width="260" alt="Mac용 앱 내려받기 · Apple Silicon + Intel" /></a>
+<a href="https://github.com/pilgrim13/chiikawa-corner/releases/latest/download/Chiikawa-Corner-mac.dmg"><img src="docs/download.svg" width="245" alt="Mac용 앱 내려받기 · Apple Silicon + Intel" /></a> <a href="https://github.com/pilgrim13/chiikawa-corner/releases/latest/download/Chiikawa-Corner-windows.exe"><img src="docs/download-windows.svg" width="245" alt="Windows용 앱 내려받기 · x64" /></a>
 
-<sub>macOS 13 이상 · 회원가입 없이 · 앱 하나만 설치</sub>
+<sub>macOS 13 이상 / Windows 10·11 x64 · 회원가입 없이 · 앱 하나만 설치</sub>
 
 [새 소식](https://github.com/pilgrim13/chiikawa-corner/releases) · [불편한 점 알려주기](https://github.com/pilgrim13/chiikawa-corner/issues)
 
@@ -21,12 +21,12 @@ Mac 바탕화면 구석을 산책하는 작은 친구들과 말풍선으로 수�
 
 ### 우리, 같이 있을까요?
 
-1. **앱을 데려와요.** 위에서 내려받은 DMG를 열고, **Chiikawa Corner**를 **Applications**로 끌어 놓아요.
-2. **오늘의 나를 골라요.** 닉네임과 캐릭터를 정하고 **우리 방 만들기**를 눌러요. 치이카와·하치와레·우사기 중 누구든 좋아요.
+1. **앱을 데려와요.** Mac은 DMG를 열고 **Chiikawa Corner**를 **Applications**로 끌어 놓아요. Windows는 EXE를 실행하면 내 계정에 설치돼요.
+2. **오늘의 나를 골라요.** 닉네임과 캐릭터를 정하고 **우리 방 만들기**를 눌러요. 친구 8종 중 누구든 좋아요.
 3. **친구에게 문을 열어요.** **친구 초대**로 복사한 초대장을 보내요. 친구는 **초대받았어요**에 붙여넣고, 방장은 **들어와!**를 누르면 만날 수 있어요.
 
 한 방에 최대 **8명**. **창 접고 바탕화면에서 만나기**를 누르면 작은 친구들만 남아요.<br />
-대화창은 캐릭터를 누르거나 **⌘⇧Space**로 다시 열어요. 아직 혼자라면 **먼저 혼자 둘러보기**부터!
+대화창은 캐릭터를 누르거나 Mac **⌘⇧Space** / Windows **Ctrl+Shift+Space**로 다시 열어요. 아직 혼자라면 **먼저 혼자 둘러보기**부터!
 
 ### 새 버전도 가볍게
 
@@ -50,9 +50,23 @@ Mac 바탕화면 구석을 산책하는 작은 친구들과 말풍선으로 수�
 </details>
 
 <details>
+<summary><b>Windows에서 처음 열 때 확인 창이 떠요.</b></summary>
+
+아직 Windows 코드 서명 인증서가 없는 프로토타입이에요. 설치파일의 출처가 이 저장소의 [GitHub Releases](https://github.com/pilgrim13/chiikawa-corner/releases)인지 확인하고 진행해 주세요.
+
+</details>
+
+<details>
 <summary><b>내 컴퓨터에서도 되나요?</b></summary>
 
-**macOS 13 이상**의 Apple Silicon·Intel용 실행 파일을 함께 담았어요. 실제 실행은 Apple Silicon에서 확인했고, Intel Mac 실물 테스트와 Windows 버전은 아직 준비 중이에요.
+Mac 앱은 **macOS 13 이상**의 Apple Silicon·Intel 통합 파일이에요. Windows 앱은 **Windows 10·11 x64** 설치파일이에요. Apple Silicon Mac과 GitHub Actions Windows x64에서 실제 설치·실행·업데이트를 확인했어요. 개인 MacBook·Intel Mac 실물 확인은 계속 받을게요.
+
+</details>
+
+<details>
+<summary><b>친구 중 일부만 업데이트하면요?</b></summary>
+
+같은 방에서 계속 대화할 수 있어요. 예전 앱은 새 캐릭터 5종의 그림이 없어서 그 친구를 기본 치이카와 모습으로 보여줘요. 새 앱에서는 원래 고른 모습으로 보여요. 업데이트는 각자가 원할 때 앱 오른쪽 위 버튼으로 적용하면 돼요.
 
 </details>
 
@@ -76,7 +90,7 @@ npm run build
 npm start
 ```
 
-서버 실행, 검증, Mac 패키징과 업데이트 배포 절차는 [개발 안내](docs/DEVELOPMENT.md)에 있어요.
+서버 실행, 검증, Mac·Windows 패키징과 업데이트 배포 절차는 [개발 안내](docs/DEVELOPMENT.md)에 있어요.
 
 </details>
 
