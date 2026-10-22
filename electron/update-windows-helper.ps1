@@ -2,10 +2,11 @@ param([Parameter(Mandatory = $true)][string]$TransactionFile)
 
 $ErrorActionPreference = 'Stop'
 $tx = Get-Content -LiteralPath $TransactionFile -Raw -Encoding UTF8 | ConvertFrom-Json
+$script:launchedPid = 0
 
 function Save-Result([bool]$ok, [string]$message) {
   $temporary = "$($tx.result).tmp"
-  $result = @{ ok = $ok; version = $tx.version; message = $message } | ConvertTo-Json -Compress
+  $result = @{ ok = $ok; version = $tx.version; message = $message; appPid = $script:launchedPid } | ConvertTo-Json -Compress
   [System.IO.File]::WriteAllText($temporary, $result, [System.Text.UTF8Encoding]::new($false))
   Move-Item -LiteralPath $temporary -Destination $tx.result -Force
 }
@@ -33,7 +34,20 @@ try {
 
   $previous = $env:CORNER_UPDATE_TOKEN
   $env:CORNER_UPDATE_TOKEN = $tx.token
-  try { $newApp = Start-Process -FilePath $tx.target -PassThru }
+  # Tests use a new CDP port so the restarted app never races the old port's
+  # shutdown. Normal installed apps do not set this transaction field.
+  if ($tx.restartDebugPort -and $tx.restartDebugPort -match '^\d{2,5}$') {
+    $env:CORNER_TEST_DEBUG_PORT = $tx.restartDebugPort
+  }
+  try {
+    if ($tx.restartDebugPort -and $tx.restartDebugPort -match '^\d{2,5}$') {
+      $debugArguments = "--remote-debugging-port=$($tx.restartDebugPort) --remote-debugging-address=127.0.0.1"
+      $newApp = Start-Process -FilePath $tx.target -ArgumentList $debugArguments -PassThru
+    } else {
+      $newApp = Start-Process -FilePath $tx.target -PassThru
+    }
+    $script:launchedPid = $newApp.Id
+  }
   finally { $env:CORNER_UPDATE_TOKEN = $previous }
   for ($i = 0; $i -lt 600; $i++) {
     if (Test-Path -LiteralPath $tx.ack) {

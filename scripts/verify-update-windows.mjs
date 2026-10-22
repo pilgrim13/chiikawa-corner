@@ -44,7 +44,7 @@ const feed = http.createServer((request, response) => {
     stream.on('error', () => response.destroy()); response.on('close', () => stream.destroy()); stream.pipe(response);
   } else { response.writeHead(404); response.end(); }
 });
-let application, browser, panel, debugUrl, diagnostics = '', installStarted = false;
+let application, browser, panel, debugUrl, updateReport, diagnostics = '', installStarted = false, lastConnectError = '';
 const ownedPids = new Set();
 const errors = [];
 async function listen(server) {
@@ -78,28 +78,39 @@ async function browserPid(candidate) {
 }
 async function connectPanel(expectedPid) {
   let candidate;
+  let stage = 'connect';
   return waitFor(async () => {
     try {
+      stage = 'CDP connect';
       if (!candidate?.isConnected()) candidate = await chromium.connectOverCDP(debugUrl, { timeout: 1500 });
+      stage = 'browser PID and executable';
       const pid = await browserPid(candidate);
       if (expectedPid !== undefined) assert.equal(pid, expectedPid);
+      stage = 'panel discovery';
       const page = candidate.contexts().flatMap((context) => context.pages()).find((item) => item.url().includes('view=panel'));
-      if (!page) return false;
+      if (!page) { lastConnectError = 'panel discovery: no panel page'; return false; }
+      stage = 'panel rendering';
       await page.locator('.app-shell').waitFor({ timeout: 1500 });
       page.setDefaultTimeout(30000);
       page.on('pageerror', (error) => errors.push(error.message));
       return { browser: candidate, panel: page, pid };
     } catch (error) {
+      lastConnectError = `${stage}: ${error.message}`;
       if (error.code === 'ERR_ASSERTION') throw error;
       return false;
     }
-  }, 'connect to installed Windows application', 45000);
+  }, 'connect to installed Windows application', 45000).catch((error) => { throw new Error(`${error.message}; last attempt: ${lastConnectError}`); });
 }
 async function stopTestApp() {
   try {
     const candidate = browser?.isConnected() ? browser : await chromium.connectOverCDP(debugUrl, { timeout: 1500 });
     await browserPid(candidate);
   } catch {}
+  if (updateReport?.appPid) {
+    try {
+      if (await processPath(updateReport.appPid) === path.normalize(executable).toLowerCase()) ownedPids.add(updateReport.appPid);
+    } catch {}
+  }
   for (const pid of ownedPids) {
     // Recheck path before termination: never kill another app or a reused PID.
     try { if (await processPath(pid) === path.normalize(executable).toLowerCase()) process.kill(pid, 'SIGTERM'); } catch {}
@@ -111,12 +122,13 @@ try {
   const serverUrl = `http://127.0.0.1:${relay.httpServer.address().port}`;
   const feedPort = await listen(feed);
   const probe = net.createServer(); const debugPort = await listen(probe);
-  await new Promise((resolve) => probe.close(resolve));
+  const nextProbe = net.createServer(); const nextDebugPort = await listen(nextProbe);
+  await Promise.all([new Promise((resolve) => probe.close(resolve)), new Promise((resolve) => nextProbe.close(resolve))]);
   debugUrl = `http://127.0.0.1:${debugPort}`;
   const payload = Buffer.from(JSON.stringify({ schema: 1, appId: 'com.corner.chiikawa', platform: 'win32', arch: 'x64', version: nextVersion, url: `http://127.0.0.1:${feedPort}/update.exe`, size: installerInfo.size, sha256, releaseNotes: 'Windows 실제 설치·재시작·프로필 보존 검증' }));
   envelope = { payload: payload.toString('base64'), signature: sign(null, payload, keys.privateKey).toString('base64') };
   await fs.writeFile(configFile, JSON.stringify({ winFeedUrl: `http://127.0.0.1:${feedPort}/win-latest.json`, publicKey: keys.publicKey.export({ type: 'spki', format: 'pem' }) }));
-  const env = { ...process.env, CORNER_TEST: '1', CORNER_USER_DATA: userData, CORNER_SERVER_URL: serverUrl, CORNER_UPDATE_CONFIG: configFile, CORNER_TEST_DEBUG_PORT: String(debugPort) };
+  const env = { ...process.env, CORNER_TEST: '1', CORNER_USER_DATA: userData, CORNER_SERVER_URL: serverUrl, CORNER_UPDATE_CONFIG: configFile, CORNER_TEST_DEBUG_PORT: String(debugPort), CORNER_TEST_RESTART_DEBUG_PORT: String(nextDebugPort) };
   delete env.ELECTRON_RUN_AS_NODE; delete env.CORNER_DEV_URL; delete env.CORNER_HEADLESS; delete env.CORNER_UPDATE_TOKEN;
   application = spawn(executable, [`--remote-debugging-port=${debugPort}`, '--remote-debugging-address=127.0.0.1'], { env, stdio: ['ignore', 'pipe', 'pipe'] });
   ownedPids.add(application.pid);
@@ -163,6 +175,9 @@ try {
     return value;
   }, 'Windows install and UI-ready acknowledgement', 180000);
   assert.equal(report.version, nextVersion);
+  updateReport = report;
+  console.log(`Windows update: helper acknowledged new app PID ${report.appPid || 'unknown'}`);
+  debugUrl = `http://127.0.0.1:${nextDebugPort}`;
   ({ browser, panel } = await connectPanel());
   assert.notEqual(await browserPid(browser), application.pid);
   const installedConfig = await panel.evaluate(() => window.corner.getConfig());
@@ -187,6 +202,9 @@ try {
   console.log(JSON.stringify(summary, null, 2));
 } catch (error) {
   console.error(`Windows updater E2E failed: ${error.message}`);
+  if (lastConnectError) console.error(`Last Windows app connection attempt: ${lastConnectError}`);
+  console.error(`CDP endpoint (${debugUrl}): ${await fetch(`${debugUrl}/json/version`, { signal: AbortSignal.timeout(1500) }).then((response) => response.status, (cause) => cause.message)}`);
+  if (updateReport?.appPid) console.error(`Updated app PID ${updateReport.appPid}: ${await processPath(updateReport.appPid).catch((cause) => cause.message)}`);
   if (diagnostics) console.error(diagnostics.slice(-6000));
   const updateDirectory = path.join(userData, 'updates');
   const files = await fs.readdir(updateDirectory).catch(() => []);

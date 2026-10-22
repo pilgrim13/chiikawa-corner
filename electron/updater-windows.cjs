@@ -110,6 +110,7 @@ function createWindowsUpdater({ app, config, onState, testMode = false, platform
         started: path.join(cache, `${token}.started`), ack: path.join(cache, `${token}.ready`),
         result: path.join(cache, 'last-install.json'),
       };
+      if (testMode && /^\d{2,5}$/.test(process.env.CORNER_TEST_RESTART_DEBUG_PORT || '')) tx.restartDebugPort = process.env.CORNER_TEST_RESTART_DEBUG_PORT;
       const transactionFile = path.join(cache, `win-transaction-${token}.json`);
       await fsp.writeFile(transactionFile, JSON.stringify(tx), { mode: 0o600 });
       emit({ phase: 'installing', message: '앱을 재시작해 새 버전을 설치할게요.' });
