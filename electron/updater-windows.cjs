@@ -137,8 +137,8 @@ function createWindowsUpdater({ app, config, onState, testMode = false, platform
       const launcher = `
 $ErrorActionPreference = 'Stop'
 try {
-  $args = '-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "' + $env:CORNER_HELPER_SCRIPT + '" "' + $env:CORNER_HELPER_TRANSACTION + '"'
-  $child = Start-Process -FilePath $env:CORNER_HELPER_POWERSHELL -ArgumentList $args -WindowStyle Hidden -RedirectStandardOutput $env:CORNER_HELPER_OUTPUT -RedirectStandardError $env:CORNER_HELPER_ERRORS -PassThru -ErrorAction Stop
+  $helperArguments = '-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "' + $env:CORNER_HELPER_SCRIPT + '" "' + $env:CORNER_HELPER_TRANSACTION + '"'
+  $child = Start-Process -FilePath $env:CORNER_HELPER_POWERSHELL -ArgumentList $helperArguments -WindowStyle Hidden -RedirectStandardOutput $env:CORNER_HELPER_OUTPUT -RedirectStandardError $env:CORNER_HELPER_ERRORS -PassThru -ErrorAction Stop
   if (-not $child -or $child.Id -le 0) { throw 'PowerShell helper was not started.' }
 } catch {
   [Console]::Error.WriteLine($_.Exception.Message)

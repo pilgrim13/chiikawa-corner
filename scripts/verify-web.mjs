@@ -21,6 +21,12 @@ async function leaveIfJoined(page) {
 }
 
 try {
+  if (site.endsWith('/chiikawa/')) {
+    const shortAddress = await hostContext.newPage();
+    await shortAddress.goto(site.slice(0, -1), { waitUntil: 'domcontentloaded' }).catch(() => {});
+    await shortAddress.waitForURL(site);
+    await shortAddress.close();
+  }
   const response = await host.goto(site, { waitUntil: 'domcontentloaded' });
   assert.equal(response?.status(), 200, '웹 첫 화면이 열려야 해');
   await host.locator('.status-pill.online').waitFor();

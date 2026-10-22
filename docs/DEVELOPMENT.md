@@ -4,7 +4,7 @@
 
 이 문서는 구현·개발 명령과 버전별 검증 기록을 보관한다. 공개 배포 파일과 버전은 [GitHub Releases](https://github.com/pilgrim13/chiikawa-corner/releases)를 기준으로 확인한다. 아래 모든 명령의 작업 폴더는 저장소 루트다.
 
-친구 캐릭터가 Mac·Windows 바탕화면 구석에서 산책하고, 말풍선으로 대화하는 작은 앱.
+친구 캐릭터가 Mac·Windows 바탕화면 구석에서 산책하고, 브라우저 탭 안의 정원에서도 말풍선으로 대화하는 작은 앱.
 
 ## 설치 흐름
 
@@ -18,7 +18,7 @@
 
 친구가 없어도 **먼저 혼자 둘러보기**로 캐릭터와 말풍선을 체험할 수 있다. 체험 친구는 실제 접속자가 아니며 화면에 명시된다. 별도 Node.js·터미널 설치가 필요 없는 앱이다.
 
-0.1.0 배포는 **macOS 13 이상, Apple Silicon·Intel 실행 파일을 함께 담은 통합 Mac 프로토타입**이다. 실제 실행 검증은 Apple Silicon에서 했다. 개발자 ID 인증서가 없어 Apple 공증은 하지 않았다. 앱 무결성용 ad-hoc 서명과 Apple이 확인한 배포 서명은 다르다. 다른 Mac에서 처음 실행할 때 차단된다면 해당 파일을 확인한 뒤 macOS **시스템 설정 → 개인정보 보호 및 보안 → 그래도 열기**를 사용한다. 시스템 보안 전체를 끄는 방식은 사용하지 않는다.
+Mac 배포는 **macOS 13 이상, Apple Silicon·Intel 실행 파일을 함께 담은 통합 프로토타입**이다. 실제 실행 검증은 Apple Silicon에서 했다. 개발자 ID 인증서가 없어 Apple 공증은 하지 않았다. 앱 무결성용 ad-hoc 서명과 Apple이 확인한 배포 서명은 다르다. 다른 Mac에서 처음 실행할 때 차단된다면 해당 파일을 확인한 뒤 macOS **시스템 설정 → 개인정보 보호 및 보안 → 그래도 열기**를 사용한다. 시스템 보안 전체를 끄는 방식은 사용하지 않는다.
 
 ## 현재 구현
 
@@ -31,10 +31,13 @@
 - 잠깐 끊긴 연결 복구, 오프라인 나가기 후 복귀 시 퇴장 정리
 - 방장 연결 끊김 60초 뒤 자동 위임, 활동 중인 방의 오프라인 멤버 5분 뒤 정리
 - 전원이 오프라인인 방은 10분 뒤 삭제. 서버 재시작 시 방·채팅은 삭제
+- 브라우저에서 같은 방을 쓰는 탭 안 정원, 방 코드를 담은 초대 링크, 지원 브라우저의 Document Picture-in-Picture 작은 채팅창. 작은 창은 원래 탭이 열려 있어야 한다
 
 ## 프로토타입 연결 범위
 
-기본 중계 주소는 `electron/config.json`에 있다. 초기 0.1.0은 개발 Mac의 전용 서버를 Cloudflare Quick Tunnel로 연결했다. 현재도 채팅 서버를 운영하는 Mac과 중계 프로세스가 켜져 있어야 인터넷 방이 작동하며, GitHub에 설치파일을 게시하는 것만으로 채팅 서버가 상시 운영되지는 않는다. 배포 전 실제 설정 파일과 접속 상태를 확인한다.
+기본 중계 주소는 `electron/config.json`에 있다. 초기 0.1.0은 개발 Mac의 전용 서버를 Cloudflare Quick Tunnel로 연결했다. 0.3.0은 Tailscale Funnel의 `https://junnyeonglee-macmini.taile9e6e.ts.net/chiikawa/`를 웹판·신규 앱의 고정 주소로 사용한다. Funnel은 `/chiikawa`만 전용 서버로 연결하며 다른 경로는 변경하지 않는다. 기존 0.2.1 클라이언트용 Cloudflare 주소도 같은 서버로 연결한다. 현재도 채팅 서버를 운영하는 Mac이 켜져 있어야 인터넷 방이 작동하며, GitHub에 설치파일을 게시하는 것만으로 채팅 서버가 상시 운영되지는 않는다. 배포 전 실제 설정 파일과 접속 상태를 확인한다.
+
+이 Mac mini에서는 `~/Library/LaunchAgents/com.corner.chiikawa-relay.plist`가 로그인 시 전용 서버를 자동 시작하고, 종료되면 다시 실행한다. `launchctl print gui/$(id -u)/com.corner.chiikawa-relay`와 공개 `/chiikawa/health`로 실제 상태를 확인한다. 웹 파일은 같은 저장소의 `dist/`에서 제공되므로 웹 변경 후 `npm run build`가 필요하다. Mac이 꺼져 있거나 로그인 전이면 공개 주소도 응답하지 않을 수 있다. Cloudflare Quick Tunnel 주소는 구버전 호환용 임시 주소라 새 설치에는 사용하지 않는다.
 
 `연결 설정`에서 새 서버 주소를 적용할 수 있으며, 새 주소가 포함된 전체 초대장을 붙여넣어도 자동 변경된다. 연결 실패 때 체험 모드는 계속 사용할 수 있다. 로컬 서버만 시험하려면 `CORNER_SERVER_URL=http://127.0.0.1:47831 npm start`로 실행한다. 해당 포트가 비어 있으면 앱이 내장 서버를 시작한다.
 
@@ -58,7 +61,7 @@ npm run package:mac
 npm run package:win # Windows x64에서 실행
 ```
 
-패키징 후 `CORNER_EXECUTABLE="실제 .app/Contents/MacOS/Chiikawa Corner" node scripts/verify-electron.mjs`로 설치파일의 네이티브 동작을 확인할 수 있다. `TEST_SERVER_URL`로 시험할 서버를 고른다. 개발 서버가 켜진 상태에서 `scripts/verify-browser.mjs`, `scripts/verify-edge-cases.mjs`, `scripts/verify-ime.mjs`로 Chrome 두 사용자·재접속·한글 입력 검증도 재실행할 수 있다.
+패키징 후 `CORNER_EXECUTABLE="실제 .app/Contents/MacOS/Chiikawa Corner" node scripts/verify-electron.mjs`로 설치파일의 네이티브 동작을 확인할 수 있다. `TEST_SERVER_URL`로 시험할 서버를 고른다. 개발 서버가 켜진 상태에서 `scripts/verify-browser.mjs`, `scripts/verify-edge-cases.mjs`, `scripts/verify-ime.mjs`로 Chrome 두 사용자·재접속·한글 입력 검증도 재실행할 수 있다. `node scripts/verify-web.mjs`는 공개 웹에서 초대 링크·방장 승인·양방향 채팅·새로고침 복귀를 확인한다. 390px 검사는 모바일 **화면 크기**의 데스크톱 Chrome 에뮬레이션이며 실제 휴대전화 테스트는 아니다.
 
 `server/index.mjs`는 독립 배포 가능하다. `HOST`, `PORT`, `ALLOWED_ORIGINS`로 네트워크 설정을 지정한다. 기본은 127.0.0.1:47831이며 외부 웹 미리보기 Origin은 명시적으로 허용한다. 서버는 인증정보나 채팅 본문을 로그에 기록하지 않는다. 세션 토큰은 본인 응답에만 포함되며 방장 권한을 모든 요청에서 검사한다. 계정 없는 프로토타입이라 사람 단위의 영구 차단은 제공하지 않는다.
 
@@ -110,9 +113,11 @@ node scripts/verify-update-ui.mjs
 
 ## 0.3.0 검증 — 2026-10-22
 
-Mac mini에서 8종 캐릭터·혼합 버전 방 입장 검사, updater의 서명·해시·실패 복구를 포함한 자동 테스트 **43개**와 타입 검사를 통과했다. 1000×780 및 680×560 UI에서 8종 선택과 채팅 입력 영역을 확인했다. Mac universal 앱의 ad-hoc 코드 서명·arm64/x86_64 구성도 확인했다.
+Mac mini에서 8종 캐릭터·혼합 버전 방 입장·재접속 순서 검사, updater의 서명·해시·실패 복구를 포함한 자동 테스트 **47개**와 타입 검사를 통과했다. 1000×780 및 680×560 UI에서 8종 선택과 채팅 입력 영역을 확인했다. 공개 웹판의 두 사용자 방 생성·초대·방장 승인·새 캐릭터·채팅·새로고침 복귀와 Chrome Document Picture-in-Picture의 작은 창 채팅·복귀를 확인했다. Mac universal 앱의 ad-hoc 코드 서명·arm64/x86_64 구성도 확인했다.
 
 실제 공개 **0.2.1 DMG 설치본 → 0.3.0**을 격리된 앱 복사본으로 업데이트해 새 프로세스 시작, 설정·기존 방·채팅 복원을 확인했다. Windows 검증은 `.github/workflows/windows.yml`에서 x64 NSIS 설치본 0.2.9 → 0.3.0 버튼 업데이트와 새 앱 시작·방 복원 뒤 일반 기능 smoke까지 진행한다. Windows 빌드의 배포 서명키는 GitHub Actions로 보내지 않는다.
+
+최종 Mac DMG를 실제 마운트해 0.3.0 앱과 `/Applications` 드래그 링크를 확인했다. 이미지 체크섬, 앱 ad-hoc 서명, arm64·x86_64 구성을 검증했다. 패키징한 0.3.0 앱으로 고정 HTTPS 중계의 방 생성·투명 바탕화면 캐릭터·말풍선·창 접기/복귀·퇴장까지 실행했다. 같은 중계의 공개 브라우저판도 슬래시 없는 주소 자동 이동, 두 사용자 초대·승인·양방향 채팅·새로고침 복귀를 확인했다.
 
 구버전과 신버전은 같은 방에 참여할 수 있다. 0.2.1 이하 앱에 없는 새 캐릭터는 서버가 기본 치이카와 모습으로 보내고, 0.3.0 앱에는 원래 캐릭터를 보낸다. 서버는 메모리 기반이므로 새 서버 코드 적용 시 이미 열린 방은 보존할 수 없고, 이용 중인 방이 없을 때 재시작한다.
 
@@ -132,6 +137,6 @@ Mac mini Apple Silicon에서 타입 검사와 자동 테스트 **39개**를 통�
 
 패키징 도구의 한글 NFC/NFD Helper 이름 불일치를 피하기 위해 내부 제품명은 `Chiikawa Corner`, 표시명과 UI는 `치이카와 모퉁이`로 분리했다. 이 설정은 Helper 프로세스 탐색에 영향을 주므로 단순히 한글 productName으로 되돌리지 않는다.
 
-다음 단계는 상시 중계 주소 마련, Apple Developer ID 서명·공증, Windows 코드 서명, 실제 친구의 별도 기기 테스트다. Intel Mac·전체 화면 앱·다중 모니터 실물 테스트는 아직 완료하지 않았다.
+다음 단계는 Apple Developer ID 서명·공증, Windows 코드 서명, 실제 친구의 별도 기기 테스트다. Intel Mac·전체 화면 앱·다중 모니터 실물 테스트는 아직 완료하지 않았다.
 
-캐릭터 그림은 built-in imagegen으로 한 스타일 기준으로 생성했다. 정면 전신·초콜릿색 균일 윤곽선·평면 파스텔·분홍 볼·투명 배경·그림자 없음으로 맞추고, 치이카와 이미지를 나머지 두 캐릭터의 스타일 참고로 사용했다.
+캐릭터 그림은 built-in imagegen으로 한 스타일 기준으로 생성했다. 정면 전신·초콜릿색 균일 윤곽선·평면 파스텔·분홍 볼·투명 배경·그림자 없음으로 맞추고, 치이카와 이미지를 나머지 캐릭터의 스타일 참고로 사용했다.
