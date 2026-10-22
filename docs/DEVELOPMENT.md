@@ -115,7 +115,7 @@ node scripts/verify-update-ui.mjs
 
 Mac mini에서 8종 캐릭터·혼합 버전 방 입장·재접속 순서 검사, updater의 서명·해시·실패 복구를 포함한 자동 테스트 **47개**와 타입 검사를 통과했다. 1000×780 및 680×560 UI에서 8종 선택과 채팅 입력 영역을 확인했다. 공개 웹판의 두 사용자 방 생성·초대·방장 승인·새 캐릭터·채팅·새로고침 복귀와 Chrome Document Picture-in-Picture의 작은 창 채팅·복귀를 확인했다. Mac universal 앱의 ad-hoc 코드 서명·arm64/x86_64 구성도 확인했다.
 
-실제 공개 **0.2.1 DMG 설치본 → 0.3.0**을 격리된 앱 복사본으로 업데이트해 새 프로세스 시작, 설정·기존 방·채팅 복원을 확인했다. Windows 검증은 `.github/workflows/windows.yml`에서 x64 NSIS 설치본 0.2.9 → 0.3.0 버튼 업데이트와 새 앱 시작·방 복원 뒤 일반 기능 smoke까지 진행한다. Windows 빌드의 배포 서명키는 GitHub Actions로 보내지 않는다.
+실제 공개 **0.2.1 DMG 설치본 → 0.3.0**을 격리된 앱 복사본으로 업데이트해 새 프로세스 시작, 설정·기존 방·채팅 복원을 확인했다. [Windows 실기 CI](https://github.com/pilgrim13/chiikawa-corner/actions/runs/39755564732)에서는 x64 NSIS 설치본 0.2.9 → 0.3.0 버튼 업데이트, 새 앱 시작, 방·채팅·프로필 복원, 일반 기능 smoke를 통과했다. Windows 빌드의 배포 서명키는 GitHub Actions로 보내지 않았다.
 
 최종 Mac DMG를 실제 마운트해 0.3.0 앱과 `/Applications` 드래그 링크를 확인했다. 이미지 체크섬, 앱 ad-hoc 서명, arm64·x86_64 구성을 검증했다. 패키징한 0.3.0 앱으로 고정 HTTPS 중계의 방 생성·투명 바탕화면 캐릭터·말풍선·창 접기/복귀·퇴장까지 실행했다. 같은 중계의 공개 브라우저판도 슬래시 없는 주소 자동 이동, 두 사용자 초대·승인·양방향 채팅·새로고침 복귀를 확인했다.
 

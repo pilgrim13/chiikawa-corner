@@ -63,7 +63,7 @@ Mac·Windows 바탕화면 또는 브라우저의 작은 정원에서 친구들�
 <details>
 <summary><b>내 컴퓨터에서도 되나요?</b></summary>
 
-Mac 앱은 **macOS 13 이상**의 Apple Silicon·Intel 통합 파일이에요. Windows 앱은 **Windows 10·11 x64** 설치파일이에요. Apple Silicon Mac에서 실제 설치·실행·업데이트를 확인했어요. Windows x64 실기 CI는 검증 중이며, 개인 MacBook·Intel Mac 실물 확인도 계속 받을게요.
+Mac 앱은 **macOS 13 이상**의 Apple Silicon·Intel 통합 파일이에요. Windows 앱은 **Windows 10·11 x64** 설치파일이에요. Apple Silicon Mac과 GitHub Actions Windows x64에서 실제 설치·실행·업데이트를 확인했어요. 개인 MacBook·Intel Mac 실물 확인은 계속 받을게요.
 
 </details>
 
