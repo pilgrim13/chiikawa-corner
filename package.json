@@ -1,0 +1,104 @@
+{
+  "name": "chiikawa-corner",
+  "version": "0.2.1",
+  "private": true,
+  "description": "친구들이 머무는 작은 바탕화면, 치이카와 모퉁이",
+  "main": "electron/main.cjs",
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 127.0.0.1",
+    "server": "node server/index.mjs",
+    "typecheck": "tsc --noEmit",
+    "build": "npm run typecheck && vite build",
+    "start": "electron .",
+    "test": "node --test tests/*.mjs scripts/publish-update.test.mjs",
+    "build:updater": "clang -arch arm64 -arch x86_64 -mmacosx-version-min=13.0 scripts/swap-bundles.c -o electron/swap-bundles && codesign --force --sign - electron/swap-bundles",
+    "package:mac": "npm run build:updater && npm run build && electron-builder --mac dmg zip --universal",
+    "package:mac:intel": "npm run build:updater && npm run build && electron-builder --mac dmg zip --x64",
+    "package:mac:arm64": "npm run build:updater && npm run build && electron-builder --mac dmg zip --arm64"
+  },
+  "dependencies": {
+    "express": "^5.1.0",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0",
+    "socket.io": "^4.8.1",
+    "socket.io-client": "^4.8.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.18.0",
+    "@types/react": "^19.2.0",
+    "@types/react-dom": "^19.2.0",
+    "@vitejs/plugin-react": "^5.0.0",
+    "electron": "^45.0.0",
+    "electron-builder": "^26.0.0",
+    "playwright": "^1.56.0",
+    "typescript": "^5.9.0",
+    "vite": "^7.2.0"
+  },
+  "build": {
+    "appId": "com.corner.chiikawa",
+    "productName": "Chiikawa Corner",
+    "artifactName": "Chiikawa-Corner-${version}-${arch}.${ext}",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**/*",
+      "!dist/downloads{,/**/*}",
+      "!dist/updates{,/**/*}",
+      "electron/**/*",
+      "server/**/*",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "public/characters",
+        "to": "characters"
+      }
+    ],
+    "asarUnpack": [
+      "electron/swap-bundles"
+    ],
+    "mac": {
+      "category": "public.app-category.social-networking",
+      "target": [
+        "dmg",
+        "zip"
+      ],
+      "identity": "-",
+      "hardenedRuntime": false,
+      "gatekeeperAssess": false,
+      "icon": "electron/icon.icns",
+      "extendInfo": {
+        "CFBundleDisplayName": "치이카와 모퉁이"
+      }
+    },
+    "dmg": {
+      "title": "치이카와 모퉁이",
+      "window": {
+        "width": 540,
+        "height": 360
+      },
+      "contents": [
+        {
+          "x": 130,
+          "y": 180
+        },
+        {
+          "x": 410,
+          "y": 180,
+          "type": "link",
+          "path": "/Applications"
+        }
+      ]
+    },
+    "win": {
+      "target": "nsis"
+    },
+    "nsis": {
+      "oneClick": true,
+      "perMachine": false
+    }
+  },
+  "author": "Chiikawa Corner prototype"
+}

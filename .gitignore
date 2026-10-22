@@ -1,0 +1,9 @@
+node_modules/
+dist/
+release/
+release-feed/
+electron/swap-bundles
+.runtime/
+test-results/
+*.log
+.DS_Store
