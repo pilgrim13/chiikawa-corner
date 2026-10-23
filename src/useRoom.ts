@@ -26,6 +26,39 @@ export function parseInvitation(raw: string): { code: string; endpoint?: string 
   if (parts.length === 3 && parts[0] === '치이카와 모퉁이') return { endpoint: normalizeServer(parts[1]), code: parts[2].replace(/[^a-z0-9]/gi, '').toUpperCase() };
   return { code: raw.trim().replace(/[^a-z0-9]/gi, '').toUpperCase() };
 }
+/** Chat events and ACKs both carry the timestamp, even when no room snapshot follows. */
+export function recordChatMessage(room: RoomSnapshot | null, message: ChatMessage): RoomSnapshot | null {
+  if (!room) return null;
+  const duplicate = room.messages.some((previous) => previous.id === message.id);
+  let activityChanged = false;
+  const members = message.kind === 'system' ? room.members : room.members.map((member) => {
+    if (member.id !== message.memberId) return member;
+    const lastChatAt = Math.max(member.lastChatAt ?? member.joinedAt, message.sentAt);
+    if (member.lastChatAt === lastChatAt && member.hasChatted === true) return member;
+    activityChanged = true;
+    return { ...member, lastChatAt, hasChatted: true };
+  });
+  if (duplicate && !activityChanged) return room;
+  return { ...room, members: activityChanged ? members : room.members, messages: duplicate ? room.messages : [...room.messages, message].slice(-100) };
+}
+/** A delayed snapshot may omit the latest event, particularly on an older server. */
+export function retainRecentActivity(next: RoomSnapshot, previous: RoomSnapshot | null): RoomSnapshot {
+  if (!previous || previous.id !== next.id) return next;
+  const priorMembers = new Map(previous.members.map((member) => [member.id, member]));
+  let changed = false;
+  const members = next.members.map((member) => {
+    const prior = priorMembers.get(member.id);
+    if (!prior) return member;
+    const priorAt = prior.lastChatAt ?? prior.joinedAt;
+    const nextAt = member.lastChatAt ?? member.joinedAt;
+    const lastChatAt = Math.max(priorAt, nextAt);
+    const hasChatted = prior.hasChatted === true || member.hasChatted === true;
+    if (lastChatAt === nextAt && hasChatted === (member.hasChatted === true)) return member;
+    changed = true;
+    return { ...member, lastChatAt, hasChatted };
+  });
+  return changed ? { ...next, members } : next;
+}
 function readSavedSession(endpoint: string, leaving = false): Session | null {
   try {
     const saved = JSON.parse(localStorage.getItem(leaving ? leaveKey(endpoint) : sessionKey(endpoint)) || 'null');
@@ -49,7 +82,7 @@ export function useRoom(endpoint: string) {
   const reconnectRef = useRef<() => void>(() => {});
   const acceptJoined = useCallback((joined: Joined, targetEndpoint: string) => {
     sessionRef.current = joined.session;
-    setSession(joined.session); setRoom(joined.room); setPending(false); pendingRef.current = false;
+    setSession(joined.session); setRoom((previous) => retainRecentActivity(joined.room, previous)); setPending(false); pendingRef.current = false;
     localStorage.setItem(sessionKey(targetEndpoint), JSON.stringify(joined.session));
     setError(''); setNotice('');
   }, []);
@@ -124,8 +157,8 @@ export function useRoom(endpoint: string) {
       if (pendingRef.current) { setPending(false); pendingRef.current = false; setError('연결이 끊겨 입장 요청이 취소됐어. 다시 요청해줘.'); }
     });
     socket.on('connect_error', () => { readyRef.current = false; setConnected(false); });
-    socket.on('room:state', (next: RoomSnapshot) => { if (!leavingRef.current) setRoom(next); });
-    socket.on('chat:message', (message: ChatMessage) => setRoom((previous) => previous && !previous.messages.some((m) => m.id === message.id) ? { ...previous, messages: [...previous.messages, message].slice(-100) } : previous));
+    socket.on('room:state', (next: RoomSnapshot) => { if (!leavingRef.current) setRoom((previous) => retainRecentActivity(next, previous)); });
+    socket.on('chat:message', (message: ChatMessage) => setRoom((previous) => recordChatMessage(previous, message)));
     socket.on('join:approved', (joined: Joined) => { acceptJoined(joined, endpoint); setNotice('친구들의 모퉁이에 도착했어!'); });
     socket.on('join:rejected', ({ reason }: { reason: string }) => { setPending(false); pendingRef.current = false; setError(reason || '방장이 이번 입장 요청을 받지 않았어.'); });
     socket.on('room:removed', ({ reason }: { reason: string }) => { clearSession(endpoint); if (!leavingRef.current) setError(reason || '방에서 나왔어.'); });
@@ -193,7 +226,7 @@ export function useRoom(endpoint: string) {
   const send = async (text: string, clientId: string) => {
     try {
       const result = await request<{message: ChatMessage}>('chat:send', { text, clientId });
-      setRoom((previous) => previous && !previous.messages.some((m) => m.id === result.message.id) ? { ...previous, messages: [...previous.messages, result.message].slice(-100) } : previous);
+      setRoom((previous) => recordChatMessage(previous, result.message));
       setError(''); return true;
     } catch (cause) { setError(cause instanceof Error ? cause.message : '메시지를 보내지 못했어. 입력한 글은 남겨둘게.'); return false; }
   };

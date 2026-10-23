@@ -1,7 +1,7 @@
 import express from 'express';
 import { createServer } from 'node:http';
-import { randomBytes, randomInt, randomUUID, timingSafeEqual } from 'node:crypto';
-import { existsSync } from 'node:fs';
+import { createHash, randomBytes, randomInt, randomUUID, timingSafeEqual } from 'node:crypto';
+import { chmodSync, closeSync, existsSync, fsyncSync, lstatSync, mkdirSync, openSync, readFileSync, renameSync, unlinkSync, writeFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { Server } from 'socket.io';
@@ -32,19 +32,19 @@ function profileFrom(payload) {
   return { nickname, character: payload.character };
 }
 
-function sameToken(left, right) {
-  if (typeof right !== 'string' || right.length !== left.length) return false;
-  const candidate = Buffer.from(right);
-  const expected = Buffer.from(left);
-  return candidate.length === expected.length && timingSafeEqual(expected, candidate);
+const hashToken = (token) => createHash('sha256').update(token).digest('hex');
+function sameToken(tokenHash, token) {
+  if (typeof token !== 'string' || !/^[A-Za-z0-9_-]{43}$/u.test(token)) return false;
+  if (typeof tokenHash !== 'string' || !/^[a-f0-9]{64}$/u.test(tokenHash)) return false;
+  return timingSafeEqual(Buffer.from(tokenHash, 'hex'), Buffer.from(hashToken(token), 'hex'));
 }
 
 /**
- * In-memory, single-process room server. No persistence or horizontal scaling.
+ * Single-process room server. A stateFile opt-in persists rooms across restarts.
  * Options: hostGraceMs (60s), memberReconnectTtlMs (5m in active rooms),
  * emptyRoomTtlMs (10m),
  * maxMembers (8), maxMessages (100), maxTextLength (200), maxRooms (1000),
- * allowedOrigins (array), staticDir (directory or false), and rateLimits.
+ * allowedOrigins (array), staticDir (directory or false), rateLimits, and stateFile.
  * Returns { httpServer, io, listen(port = 47831, host = '127.0.0.1'), close() }.
  * listen() resolves to { host, port, url }; close() clears all timers and sockets.
  */
@@ -59,10 +59,14 @@ export function createRoomServer(options = {}) {
   const configuredOrigins = options.allowedOrigins ?? (process.env.ALLOWED_ORIGINS ?? '').split(',').map((item) => item.trim()).filter(Boolean);
   const origins = new Set(configuredOrigins.map((origin) => origin.replace(/\/$/u, '')));
   const rateLimits = Object.fromEntries(Object.entries(DEFAULT_LIMITS).map(([key, value]) => [key, { ...value, ...options.rateLimits?.[key] }]));
+  // Library users (including local relay tests) are deliberately ephemeral.
+  // Only the standalone server below opts into a persistent file.
+  const stateFile = options.stateFile ? resolve(options.stateFile) : null;
   const rooms = new Map();
   const codes = new Map();
   const buckets = new Map();
   let closing = false;
+  let storageError = false;
 
   function originAllowed(origin) {
     if (!origin || origin === 'null' || origin === 'file://') return true;
@@ -81,7 +85,7 @@ export function createRoomServer(options = {}) {
     cors: { origin: (origin, callback) => callback(null, originAllowed(origin)), methods: ['GET', 'POST'] },
     allowRequest: (request, callback) => callback(null, originAllowed(request.headers.origin)),
   });
-  app.get('/health', (_request, response) => response.json({ ok: true, rooms: rooms.size }));
+  app.get('/health', (_request, response) => response.status(storageError ? 503 : 200).json({ ok: !storageError, rooms: rooms.size }));
   const staticDir = options.staticDir === false ? null : resolve(options.staticDir ?? resolve(dirname(fileURLToPath(import.meta.url)), '../dist'));
   if (staticDir && existsSync(resolve(staticDir, 'index.html'))) {
     app.use(express.static(staticDir));
@@ -116,9 +120,10 @@ export function createRoomServer(options = {}) {
   const publicMember = (member, viewer) => ({
     id: member.id, nickname: member.nickname, character: characterFor(member.character, viewer),
     color: member.color, online: Boolean(member.socketId), joinedAt: member.joinedAt,
+    lastChatAt: member.lastChatAt, hasChatted: member.hasChatted,
   });
   const messageFor = (message, viewer) => ({ ...message, character: characterFor(message.character, viewer) });
-  const sessionFor = (room, member) => ({ memberId: member.id, token: member.token, roomId: room.id });
+  const sessionFor = (room, member, token) => ({ memberId: member.id, token, roomId: room.id });
   const snapshot = (room, viewer) => ({
     id: room.id, code: room.code, name: room.name, hostId: room.hostId, locked: room.locked,
     members: [...room.members.values()].map((member) => publicMember(member, viewer)),
@@ -157,26 +162,138 @@ export function createRoomServer(options = {}) {
   }
   function newMember(room, socket, profile) {
     const usedColors = new Set([...room.members.values()].map((member) => member.color));
+    const token = randomBytes(32).toString('base64url');
+    const joinedAt = Date.now();
     const member = {
-      id: randomUUID(), token: randomBytes(32).toString('base64url'), ...profile,
+      id: randomUUID(), tokenHash: hashToken(token), ...profile,
       color: COLORS.find((color) => !usedColors.has(color)) ?? COLORS[room.members.size % COLORS.length],
-      joinedAt: Date.now(), socketId: socket.id, disconnectedAt: null, reconnectTimer: null, sent: new Map(),
+      joinedAt, lastChatAt: joinedAt, hasChatted: false,
+      socketId: socket.id, disconnectedAt: null, reconnectTimer: null, sent: new Map(),
     };
     room.members.set(member.id, member);
     socket.data.membership = { roomId: room.id, memberId: member.id };
-    return member;
+    return { member, token };
+  }
+  function persistRooms() {
+    if (!stateFile) return;
+    if (storageError) fail('STORAGE_UNAVAILABLE', '방 저장 공간을 사용할 수 없어. 서버 관리자가 복구한 뒤 다시 연결해 줘.');
+    let temporary;
+    try {
+      const data = { version: 1, rooms: [...rooms.values()].map((room) => ({
+        id: room.id, code: room.code, name: room.name, hostId: room.hostId,
+        locked: room.locked, emptySince: room.emptySince,
+        members: [...room.members.values()].map((member) => ({
+          id: member.id, tokenHash: member.tokenHash, nickname: member.nickname,
+          character: member.character, color: member.color, joinedAt: member.joinedAt,
+          lastChatAt: member.lastChatAt, hasChatted: member.hasChatted,
+          disconnectedAt: member.disconnectedAt, wasOnline: Boolean(member.socketId),
+          sent: [...member.sent.entries()],
+        })),
+        messages: room.messages,
+      })) };
+      mkdirSync(dirname(stateFile), { recursive: true, mode: 0o700 });
+      temporary = `${stateFile}.${randomUUID()}.tmp`;
+      writeFileSync(temporary, JSON.stringify(data), { encoding: 'utf8', mode: 0o600, flag: 'wx' });
+      const fd = openSync(temporary, 'r');
+      try { fsyncSync(fd); } finally { closeSync(fd); }
+      renameSync(temporary, stateFile);
+      temporary = null;
+      // Windows cannot reliably open directories as file handles. On POSIX,
+      // syncing the directory also durably records the replacement rename.
+      if (process.platform !== 'win32') {
+        let directoryFd;
+        try {
+          directoryFd = openSync(dirname(stateFile), 'r');
+          fsyncSync(directoryFd);
+        } catch (error) {
+          if (!['EINVAL', 'ENOTSUP', 'EISDIR', 'EACCES', 'EPERM'].includes(error.code)) throw error;
+        } finally {
+          if (directoryFd !== undefined) closeSync(directoryFd);
+        }
+      }
+    } catch (error) {
+      if (temporary) try { unlinkSync(temporary); } catch { /* File may already have been renamed. */ }
+      storageError = true;
+      for (const room of rooms.values()) {
+        clearTimeout(room.hostTimer);
+        clearTimeout(room.emptyTimer);
+        for (const member of room.members.values()) clearTimeout(member.reconnectTimer);
+      }
+      throw new RequestError('STORAGE_UNAVAILABLE', '방 저장 공간을 사용할 수 없어. 서버 관리자가 복구한 뒤 다시 연결해 줘.');
+    }
+  }
+  function loadRooms() {
+    if (!stateFile || !existsSync(stateFile)) return;
+    if (!lstatSync(stateFile).isFile()) throw new Error('방 저장 경로가 일반 파일이 아니야. 서버 시작을 중단했어.');
+    chmodSync(stateFile, 0o600);
+    let state;
+    try { state = JSON.parse(readFileSync(stateFile, 'utf8')); }
+    catch { throw new Error('방 저장 파일을 읽지 못했어. 기존 파일을 보존하고 서버 시작을 중단했어.'); }
+    if (state?.version !== 1 || !Array.isArray(state.rooms)) throw new Error('지원하지 않는 방 저장 형식이야. 기존 파일을 보존하고 서버 시작을 중단했어.');
+    const now = Date.now();
+    for (const savedRoom of state.rooms) {
+      if (!savedRoom || typeof savedRoom.id !== 'string' || typeof savedRoom.code !== 'string'
+        || typeof savedRoom.name !== 'string' || typeof savedRoom.hostId !== 'string'
+        || typeof savedRoom.locked !== 'boolean' || !Array.isArray(savedRoom.members)
+        || !Array.isArray(savedRoom.messages) || rooms.has(savedRoom.id) || codes.has(savedRoom.code)) {
+        throw new Error('방 저장 파일에 잘못된 방 정보가 있어. 기존 파일을 보존하고 서버 시작을 중단했어.');
+      }
+      const room = {
+        id: savedRoom.id, code: savedRoom.code, name: savedRoom.name,
+        hostId: savedRoom.hostId, locked: savedRoom.locked,
+        members: new Map(), messages: savedRoom.messages,
+        emptySince: Number.isFinite(savedRoom.emptySince) ? savedRoom.emptySince : null,
+        hostTimer: null, emptyTimer: null,
+      };
+      for (const savedMember of savedRoom.members) {
+        if (!savedMember || typeof savedMember.id !== 'string'
+          || !/^[a-f0-9]{64}$/u.test(savedMember.tokenHash)
+          || typeof savedMember.nickname !== 'string' || !CHARACTER_IDS.has(savedMember.character)
+          || typeof savedMember.color !== 'string' || !Number.isFinite(savedMember.joinedAt)
+          || !Number.isFinite(savedMember.lastChatAt) || typeof savedMember.hasChatted !== 'boolean'
+          || !Array.isArray(savedMember.sent) || room.members.has(savedMember.id)) {
+          throw new Error('방 저장 파일에 잘못된 참여자 정보가 있어. 기존 파일을 보존하고 서버 시작을 중단했어.');
+        }
+        room.members.set(savedMember.id, {
+          id: savedMember.id, tokenHash: savedMember.tokenHash,
+          nickname: savedMember.nickname, character: savedMember.character,
+          color: savedMember.color, joinedAt: savedMember.joinedAt,
+          lastChatAt: savedMember.lastChatAt, hasChatted: savedMember.hasChatted,
+          socketId: null, disconnectedAt: savedMember.wasOnline ? now :
+            (Number.isFinite(savedMember.disconnectedAt) ? savedMember.disconnectedAt : now),
+          reconnectTimer: null, sent: new Map(savedMember.sent),
+        });
+      }
+      if (!room.members.has(room.hostId)) throw new Error('방 저장 파일에 방장 정보가 없어. 기존 파일을 보존하고 서버 시작을 중단했어.');
+      rooms.set(room.id, room);
+      codes.set(room.code, room.id);
+    }
+    for (const room of rooms.values()) {
+      // A connected member becomes temporarily offline while the server is
+      // replaced. The original room code and session token remain usable.
+      if (room.emptySince === null) room.emptySince = now;
+      updateEmptyTimer(room);
+    }
+    // Save the restart boundary so repeated restarts do not reset the empty
+    // room recovery window or a member's reconnect deadline indefinitely.
+    persistRooms();
   }
   function destroyRoom(room) {
     clearTimeout(room.hostTimer);
     clearTimeout(room.emptyTimer);
+    const connected = [];
     for (const member of room.members.values()) {
       clearTimeout(member.reconnectTimer);
       const socket = io.sockets.sockets.get(member.socketId);
-      if (socket?.data.membership?.roomId === room.id) delete socket.data.membership;
-      socket?.emit('room:removed', { reason: '방이 닫혔어.' });
+      if (socket?.data.membership?.roomId === room.id) connected.push(socket);
     }
     rooms.delete(room.id);
     codes.delete(room.code);
+    persistRooms();
+    for (const socket of connected) {
+      delete socket.data.membership;
+      socket.emit('room:removed', { reason: '방이 닫혔어.' });
+    }
   }
   function updateEmptyTimer(room) {
     if (closing) return;
@@ -184,13 +301,17 @@ export function createRoomServer(options = {}) {
     if (online) {
       clearTimeout(room.emptyTimer);
       room.emptyTimer = null;
+      room.emptySince = null;
       return;
     }
     if (room.emptyTimer) return;
+    room.emptySince ??= Date.now();
     room.emptyTimer = setTimeout(() => {
       room.emptyTimer = null;
-      if (rooms.has(room.id) && ![...room.members.values()].some((member) => member.socketId)) destroyRoom(room);
-    }, emptyRoomTtlMs);
+      try {
+        if (rooms.has(room.id) && ![...room.members.values()].some((member) => member.socketId)) destroyRoom(room);
+      } catch (error) { if (!storageError) throw error; }
+    }, Math.max(0, emptyRoomTtlMs - (Date.now() - room.emptySince)));
     room.emptyTimer.unref();
   }
   function electHost(room, force = false) {
@@ -201,7 +322,10 @@ export function createRoomServer(options = {}) {
     if (currentHost && !force) {
       const remaining = hostGraceMs - (Date.now() - currentHost.disconnectedAt);
       if (remaining > 0) {
-        room.hostTimer = setTimeout(() => { if (rooms.has(room.id)) { electHost(room); broadcastState(room); } }, remaining);
+        room.hostTimer = setTimeout(() => {
+          try { if (rooms.has(room.id)) { electHost(room); persistRooms(); broadcastState(room); } }
+          catch (error) { if (!storageError) throw error; }
+        }, remaining);
         room.hostTimer.unref();
         return;
       }
@@ -214,14 +338,18 @@ export function createRoomServer(options = {}) {
     clearTimeout(member.reconnectTimer);
     member.reconnectTimer = null;
     const socket = io.sockets.sockets.get(member.socketId);
+    room.members.delete(member.id);
+    member.tokenHash = '';
+    member.sent.clear();
+    if (room.members.size === 0) destroyRoom(room);
+    else {
+      if (room.hostId === member.id) electHost(room, true);
+      updateEmptyTimer(room);
+      persistRooms();
+    }
     if (socket?.data.membership?.memberId === member.id) delete socket.data.membership;
     if (reason) socket?.emit('room:removed', { reason });
-    room.members.delete(member.id);
-    member.token = '';
-    member.sent.clear();
-    if (room.members.size === 0) { destroyRoom(room); return; }
-    if (room.hostId === member.id) electHost(room, true);
-    updateEmptyTimer(room);
+    if (!rooms.has(room.id)) return;
     broadcastState(room);
   }
   function reconnectExpired(member) {
@@ -235,12 +363,28 @@ export function createRoomServer(options = {}) {
       if (reconnectExpired(member)) removeMember(room, member);
     }
   }
+  function scheduleOfflineExpiry(room) {
+    for (const member of room.members.values()) {
+      if (member.socketId || member.reconnectTimer || member.disconnectedAt === null) continue;
+      const remaining = memberReconnectTtlMs - (Date.now() - member.disconnectedAt);
+      if (remaining <= 0) continue;
+      member.reconnectTimer = setTimeout(() => {
+        member.reconnectTimer = null;
+        try { if (rooms.has(room.id) && room.members.get(member.id) === member) expireDisconnectedMembers(room); }
+        catch (error) { if (!storageError) throw error; }
+      }, remaining);
+      member.reconnectTimer.unref();
+    }
+  }
+
+  loadRooms();
 
   io.on('connection', (socket) => {
     function handle(event, callback) {
       socket.on(event, (rawPayload, acknowledgement) => {
         const ack = typeof acknowledgement === 'function' ? acknowledgement : () => {};
         try {
+          if (storageError) fail('STORAGE_UNAVAILABLE', '방 저장 공간을 사용할 수 없어. 서버 관리자가 복구한 뒤 다시 연결해 줘.');
           const payload = rawPayload && typeof rawPayload === 'object' && !Array.isArray(rawPayload) ? rawPayload : {};
           ack({ ok: true, data: callback(payload) ?? {} });
         } catch (error) {
@@ -256,12 +400,13 @@ export function createRoomServer(options = {}) {
       if (typeof name !== 'string' || !name.trim() || countCharacters(name.trim()) > 40 || /[\u0000-\u001f\u007f]/u.test(name)) fail('INVALID_NAME', '방 이름은 줄바꿈 없이 1~40자로 입력해 줘.');
       limit('create', socket.handshake.address);
       if (rooms.size >= maxRooms) fail('SERVER_FULL', '지금 방이 너무 많아. 잠시 뒤 다시 만들어 줘.');
-      const room = { id: randomUUID(), code: newCode(), name: name.trim(), hostId: '', locked: false, members: new Map(), messages: [], hostTimer: null, emptyTimer: null };
+      const room = { id: randomUUID(), code: newCode(), name: name.trim(), hostId: '', locked: false, members: new Map(), messages: [], emptySince: null, hostTimer: null, emptyTimer: null };
       rooms.set(room.id, room);
       codes.set(room.code, room.id);
-      const member = newMember(room, socket, profile);
+      const { member, token } = newMember(room, socket, profile);
       room.hostId = member.id;
-      return { room: snapshot(room, socket), session: sessionFor(room, member) };
+      persistRooms();
+      return { room: snapshot(room, socket), session: sessionFor(room, member, token) };
     });
 
     handle('room:join', (payload) => {
@@ -275,8 +420,10 @@ export function createRoomServer(options = {}) {
       if (room.locked) fail('ROOM_LOCKED', '방장이 입장을 잠가 뒀어.');
       if (room.members.size >= maxMembers) fail('ROOM_FULL', `방에는 ${maxMembers}명까지 함께 있을 수 있어.`);
       if (![...room.members.values()].some((member) => member.socketId)) fail('HOST_UNAVAILABLE', '지금 방에 접속한 친구가 없어. 잠시 뒤 다시 들어와 줘.');
-      const member = newMember(room, socket, profile);
-      const joined = { room: snapshot(room, socket), session: sessionFor(room, member) };
+      const { member, token } = newMember(room, socket, profile);
+      room.emptySince = null;
+      persistRooms();
+      const joined = { room: snapshot(room, socket), session: sessionFor(room, member, token) };
       // Older installed apps enter only after this event. Emit it before the ACK
       // so their pending state cannot overwrite the accepted session.
       socket.emit('join:approved', joined);
@@ -286,7 +433,7 @@ export function createRoomServer(options = {}) {
 
     handle('room:resume', (payload) => {
       const room = typeof payload.roomId === 'string' ? rooms.get(payload.roomId) : null;
-      const member = room && [...room.members.values()].find((candidate) => sameToken(candidate.token, payload.token));
+      const member = room && [...room.members.values()].find((candidate) => sameToken(candidate.tokenHash, payload.token));
       if (!room || !member) fail('INVALID_SESSION', '이전 입장 정보가 만료됐어. 새 초대로 다시 들어와 줘.');
       if (reconnectExpired(member) && [...room.members.values()].some((candidate) => candidate.socketId)) {
         removeMember(room, member);
@@ -306,8 +453,10 @@ export function createRoomServer(options = {}) {
       expireDisconnectedMembers(room);
       electHost(room);
       updateEmptyTimer(room);
+      scheduleOfflineExpiry(room);
+      persistRooms();
       broadcastState(room);
-      return { room: snapshot(room, socket), session: sessionFor(room, member) };
+      return { room: snapshot(room, socket), session: sessionFor(room, member, payload.token) };
     });
 
     handle('room:leave', () => {
@@ -333,6 +482,7 @@ export function createRoomServer(options = {}) {
       const { room } = memberContext(socket, true);
       if (typeof locked !== 'boolean') fail('INVALID_LOCK', '입장 잠금 값을 다시 확인해 줘.');
       room.locked = locked;
+      persistRooms();
       broadcastState(room);
       return {};
     });
@@ -340,6 +490,7 @@ export function createRoomServer(options = {}) {
     handle('room:rotate-code', () => {
       const { room } = memberContext(socket, true);
       rotateCode(room);
+      persistRooms();
       broadcastState(room);
       return { code: room.code };
     });
@@ -351,6 +502,7 @@ export function createRoomServer(options = {}) {
       clearTimeout(room.hostTimer);
       room.hostTimer = null;
       room.hostId = memberId;
+      persistRooms();
       broadcastState(room);
       return {};
     });
@@ -358,6 +510,7 @@ export function createRoomServer(options = {}) {
     handle('profile:update', (payload) => {
       const { room, member } = memberContext(socket);
       Object.assign(member, profileFrom(payload));
+      persistRooms();
       broadcastState(room);
       return {};
     });
@@ -370,11 +523,14 @@ export function createRoomServer(options = {}) {
       if (previous) return { message: messageFor(previous, socket) };
       limit('chat', `${room.id}:${member.id}`);
       const message = { id: randomUUID(), memberId: member.id, nickname: member.nickname, character: member.character, text: text.trim(), sentAt: Date.now(), kind: 'chat' };
+      member.lastChatAt = message.sentAt;
+      member.hasChatted = true;
       member.sent.set(clientId, message);
       // Retain retry receipts beyond the visible history without unbounded memory growth.
       if (member.sent.size > 1000) member.sent.delete(member.sent.keys().next().value);
       room.messages.push(message);
       if (room.messages.length > maxMessages) room.messages.splice(0, room.messages.length - maxMessages);
+      persistRooms();
       for (const recipient of room.members.values()) {
         const viewer = recipient.socketId && io.sockets.sockets.get(recipient.socketId);
         viewer?.emit('chat:message', messageFor(message, viewer));
@@ -386,17 +542,15 @@ export function createRoomServer(options = {}) {
       const membership = socket.data.membership;
       const room = membership && rooms.get(membership.roomId);
       const member = room?.members.get(membership.memberId);
-      if (!room || !member || member.socketId !== socket.id || closing) return;
+      if (!room || !member || member.socketId !== socket.id || closing || storageError) return;
       member.socketId = null;
       member.disconnectedAt = Date.now();
       clearTimeout(member.reconnectTimer);
-      member.reconnectTimer = setTimeout(() => {
-        member.reconnectTimer = null;
-        if (rooms.has(room.id) && room.members.get(member.id) === member) expireDisconnectedMembers(room);
-      }, memberReconnectTtlMs);
-      member.reconnectTimer.unref();
+      member.reconnectTimer = null;
+      scheduleOfflineExpiry(room);
       electHost(room);
       updateEmptyTimer(room);
+      persistRooms();
       broadcastState(room);
     });
   });
@@ -432,7 +586,7 @@ export function createRoomServer(options = {}) {
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
-  const server = createRoomServer();
+  const server = createRoomServer({ stateFile: process.env.CORNER_STATE_PATH ?? resolve(dirname(fileURLToPath(import.meta.url)), '../.runtime/rooms-v1.json') });
   server.listen(Number(process.env.PORT ?? 47831), process.env.HOST ?? '127.0.0.1')
     .then(({ url }) => process.stdout.write(`치이카와 모퉁이 서버: ${url}\n`))
     .catch((error) => { process.stderr.write(`서버를 시작하지 못했어: ${error.code ?? 'UNKNOWN'}\n`); process.exitCode = 1; });

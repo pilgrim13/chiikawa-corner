@@ -1,7 +1,8 @@
 import { useEffect, useId, useRef, useState, type FormEvent } from 'react';
 import { createPortal } from 'react-dom';
 import type { RoomSnapshot } from '../shared/protocol';
-import { characterAsset } from './characters';
+import { characterAsset, characterSleepAsset } from './characters';
+import { petAction, petActivity } from './petActivity';
 import './browser-float.css';
 import floatStyles from './browser-float.css?inline';
 
@@ -17,8 +18,8 @@ export type BrowserFloatProps = {
   onSend(text: string, clientId?: string): Promise<boolean> | boolean;
 };
 
-const absoluteAsset = (character: RoomSnapshot['members'][number]['character']) =>
-  new URL(characterAsset(character), document.baseURI).href;
+const absoluteAsset = (character: RoomSnapshot['members'][number]['character'], sleeping = false) =>
+  new URL(sleeping ? characterSleepAsset(character) : characterAsset(character), document.baseURI).href;
 
 function FloatContents({ room, memberId, connected, quiet, onSend, onReturn }: Omit<BrowserFloatProps, 'room'> & { room: RoomSnapshot; onReturn(): void }) {
   const [draft, setDraft] = useState('');
@@ -75,11 +76,15 @@ function FloatContents({ room, memberId, connected, quiet, onSend, onReturn }: O
     <section className={`corner-float-scene${room.members.length > 4 ? ' is-crowded' : ''}`} aria-label="작은 창에서 산책하는 친구들" style={{ gridTemplateColumns: `repeat(${Math.min(Math.max(room.members.length, 1), 4)}, minmax(0, 1fr))` }}>
       {room.members.slice(0, 8).map((member, index) => {
         const latest = room.messages.filter((message) => message.memberId === member.id && message.kind !== 'system').at(-1);
-        const speaking = !quiet && latest && now - latest.sentAt < 10000;
-        return <div className={`corner-float-pet${member.online ? '' : ' is-away'}`} key={member.id} style={{ animationDelay: `${-index * 1.3}s` }}>
-          {speaking && <span className="corner-float-bubble" title={latest.text}>{latest.text}</span>}
-          <img src={absoluteAsset(member.character)} alt="" draggable={false} />
+        const activity = petActivity(member, now, latest);
+        const speaking = !quiet && Boolean(latest && now - latest.sentAt < 9000);
+        const action = petAction(member.id, now, activity.sleeping, speaking);
+        return <div className={`corner-float-pet${member.online ? '' : ' is-away'}${activity.sleeping ? ' is-sleeping' : ''}`} key={member.id} data-action={action} style={{ animationDelay: `${-index * 1.3}s` }}>
+          {speaking && latest && <span className="corner-float-bubble" title={latest.text}>{latest.text}</span>}
+          {activity.sleeping && <span className="corner-float-sleep-symbol" aria-hidden="true">zZ</span>}
+          <img src={absoluteAsset(member.character, activity.sleeping)} alt="" draggable={false} />
           <span className="corner-float-pet-name" title={`${member.nickname}${member.online ? '' : ' · 잠시 자리 비움'}`}>{member.nickname}{member.id === memberId && ' · 나'}</span>
+          {activity.sleeping && <span className="corner-float-idle" title={activity.sleepLabel}>{activity.sleepLabel}</span>}
         </div>;
       })}
     </section>

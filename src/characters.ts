@@ -11,4 +11,5 @@ export const CHARACTERS: { id: CharacterId; name: string; note: string; color: s
   { id: 'furuhonya', name: '후루혼야', note: '책과 친구를 좋아하는 친구', color: '#e7bac6' },
 ];
 export const characterAsset = (id: CharacterId) => `${import.meta.env.BASE_URL}characters/${id}.png`;
+export const characterSleepAsset = (id: CharacterId) => `${import.meta.env.BASE_URL}characters/${id}-sleep.png`;
 export const characterName = (id: CharacterId) => CHARACTERS.find((c) => c.id === id)?.name || id;
