@@ -40,7 +40,7 @@ try {
   const invitation = await host.evaluate(() => navigator.clipboard.readText());
   const invitationUrl = new URL(invitation);
   assert.equal(invitationUrl.searchParams.get('join'), roomCode);
-  assert.match(invitationUrl.pathname, /\/chiikawa\/$/u);
+  assert.equal(invitationUrl.pathname, new URL(host.url()).pathname, '초대 링크가 현재 웹 경로를 보존해야 해');
 
   const guestResponse = await guest.goto(invitation, { waitUntil: 'domcontentloaded' });
   assert.equal(guestResponse?.status(), 200, '초대 링크가 열려야 해');
@@ -48,10 +48,11 @@ try {
   assert.equal(await guest.locator('#invite-code').inputValue(), invitation, '초대 코드가 자동으로 채워져야 해');
   await guest.locator('#nickname').fill('웹손님');
   await guest.locator('[data-character="shisa"]').click();
-  await guest.getByRole('button', { name: '친구 방에 노크하기' }).click();
-  await host.locator('.pending-card').getByRole('button', { name: '들어와!' }).click();
+  await guest.getByRole('button', { name: '코드로 바로 입장' }).click();
   await guest.locator('.room-code strong').waitFor();
   assert.equal(await guest.locator('.room-code strong').innerText(), roomCode);
+  await host.locator('.member-row').filter({ hasText: '웹손님' }).waitFor();
+  assert.equal(await host.locator('.pending-card').count(), 0, '방장 승인 없이 바로 입장해야 해');
   assert.equal(await guest.locator('.browser-garden-pet').count(), 2, '웹 정원에 두 친구가 보여야 해');
   await guest.waitForFunction(() => [...document.querySelectorAll('.browser-garden-pet img')].every((image) => image instanceof HTMLImageElement && image.complete && image.naturalWidth > 0));
   const gardenImages = await guest.locator('.browser-garden-pet img').evaluateAll((images) => images.map((image) => image.getAttribute('src')));
@@ -73,7 +74,7 @@ try {
   await host.screenshot({ path: resolve(screenshotDir, 'web-desktop.png'), fullPage: true });
   await guest.screenshot({ path: resolve(screenshotDir, 'web-mobile.png'), fullPage: true });
   result = 'passed';
-  console.log('PASS: 공개 웹에서 방 생성, 초대 링크, 승인, 새 캐릭터 그림, 양방향 채팅, 새로고침 재접속');
+  console.log(`PASS: ${site} 방 생성, 초대 링크, 즉시 입장, 새 캐릭터 그림, 양방향 채팅, 새로고침 재접속`);
 } catch (cause) {
   await mkdir(screenshotDir, { recursive: true });
   await Promise.allSettled([

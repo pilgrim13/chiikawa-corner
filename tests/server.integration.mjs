@@ -54,7 +54,7 @@ test('all eight selectable characters can create a room and appear in snapshots'
     assert.equal(created.room.members[0].character, character);
   }
 });
-test('legacy and eight-character clients receive compatible create, pending, approval, state, and resume snapshots', async (t) => {
+test('legacy and eight-character clients receive compatible immediate-entry events, ACKs, state, and resume snapshots', async (t) => {
   const f = await fixture(t);
   const legacy = await f.client();
   const modern = await f.client({ auth: { characterSet: 8 } });
@@ -63,27 +63,24 @@ test('legacy and eight-character clients receive compatible create, pending, app
   const created = await success(legacy, 'room:create', { nickname: '랏코 방장', character: 'rakko' });
   assert.equal(created.room.members[0].character, 'chiikawa');
 
-  const legacyPending = nextEvent(legacy, 'room:state', (room) => room.pending.length === 1);
-  const requestToJoin = await success(modern, 'room:join', { code: created.room.code, nickname: '모몽가 친구', character: 'momonga' });
-  assert.equal((await legacyPending).pending[0].character, 'chiikawa');
   const modernApproved = nextEvent(modern, 'join:approved');
   const legacyJoinedState = nextEvent(legacy, 'room:state', (room) => room.members.length === 2);
-  await success(legacy, 'room:approve', { requestId: requestToJoin.requestId });
+  const modernAck = await success(modern, 'room:join', { code: created.room.code, nickname: '모몽가 친구', character: 'momonga' });
   const joined = await modernApproved;
+  assert.deepEqual(modernAck.session, joined.session, 'new clients use the immediate join ACK while old clients use the event');
   assert.deepEqual(joined.room.members.map((member) => member.character), ['rakko', 'momonga']);
   assert.deepEqual((await legacyJoinedState).members.map((member) => member.character), ['chiikawa', 'chiikawa']);
+  assert.deepEqual(modernAck.room.pending, []);
 
-  const pendingForOldHost = nextEvent(legacy, 'room:state', (room) => room.pending.length === 1);
-  const secondRequest = await success(legacyGuest, 'room:join', { code: created.room.code, nickname: '쿠리만쥬 친구', character: 'kurimanju' });
-  assert.equal((await pendingForOldHost).pending[0].character, 'chiikawa');
-  const pendingForNewHost = nextEvent(modern, 'room:state', (room) => room.hostId === joined.session.memberId && room.pending.length === 1);
-  await success(legacy, 'room:transfer', { memberId: joined.session.memberId });
-  assert.equal((await pendingForNewHost).pending[0].character, 'kurimanju', 'pending projection must not alter the original request');
   const legacyApproved = nextEvent(legacyGuest, 'join:approved');
   const modernJoinedState = nextEvent(modern, 'room:state', (room) => room.members.length === 3);
-  await success(modern, 'room:approve', { requestId: secondRequest.requestId });
-  assert.deepEqual((await legacyApproved).room.members.map((member) => member.character), ['chiikawa', 'chiikawa', 'chiikawa']);
+  const legacyAck = await success(legacyGuest, 'room:join', { code: created.room.code, nickname: '쿠리만쥬 친구', character: 'kurimanju' });
+  assert.deepEqual(legacyAck.session, (await legacyApproved).session);
+  assert.deepEqual(legacyAck.room.members.map((member) => member.character), ['chiikawa', 'chiikawa', 'chiikawa']);
   assert.deepEqual((await modernJoinedState).members.map((member) => member.character), ['rakko', 'momonga', 'kurimanju']);
+  const transferred = nextEvent(modern, 'room:state', (room) => room.hostId === joined.session.memberId);
+  await success(legacy, 'room:transfer', { memberId: joined.session.memberId });
+  assert.equal((await transferred).hostId, joined.session.memberId);
 
   for (const character of ['shisa', 'furuhonya']) {
     const nickname = `선택-${character}`;
@@ -151,12 +148,12 @@ test('mixed-version chat projects live events, history, and retry ACKs without r
 });
 
 async function createRoom(host) { return success(host, 'room:create', hostProfile); }
-async function joinRoom(host, guest, code, profile = guestProfile) {
-  const pending = await success(guest, 'room:join', { code, ...profile });
-  assert.equal(pending.pending, true);
+async function joinRoom(_host, guest, code, profile = guestProfile) {
   const approved = nextEvent(guest, 'join:approved');
-  await success(host, 'room:approve', { requestId: pending.requestId });
-  return approved;
+  const joined = await success(guest, 'room:join', { code, ...profile });
+  assert.deepEqual((await approved).session, joined.session);
+  assert.deepEqual(joined.room.pending, []);
+  return joined;
 }
 
 function assertNoPrivateFields(value) {
@@ -164,7 +161,7 @@ function assertNoPrivateFields(value) {
   for (const field of ['token', 'socketId', 'sent', 'timer', 'disconnectedAt']) assert.equal(serialized.includes(`"${field}":`), false, `${field} leaked`);
 }
 
-test('create → host approval → chat; retries are deduplicated and snapshots keep credentials private', async (t) => {
+test('create → immediate entry → chat; retries are deduplicated and snapshots keep credentials private', async (t) => {
   const f = await fixture(t);
   const host = await f.client();
   const guest = await f.client();
@@ -176,23 +173,23 @@ test('create → host approval → chat; retries are deduplicated and snapshots 
   assertNoPrivateFields(created.room);
   assert.deepEqual(await (await fetch(`${f.url}/health`)).json(), { ok: true, rooms: 1 });
 
-  const hostPending = nextEvent(host, 'room:state', (room) => room.pending.length === 1);
+  const hostJoinedState = nextEvent(host, 'room:state', (room) => room.members.length === 2);
+  const guestApproved = nextEvent(guest, 'join:approved');
   const joining = await success(guest, 'room:join', { code: created.room.code.toLowerCase(), ...guestProfile });
-  assert.equal((await hostPending).pending[0].id, joining.requestId);
-  assert.equal((await request(guest, 'chat:send', { clientId: randomUUID(), text: '아직 입장 전' })).code, 'NOT_IN_ROOM');
-  const approved = nextEvent(guest, 'join:approved');
-  await success(host, 'room:approve', { requestId: joining.requestId });
-  const joined = await approved;
+  const joined = await guestApproved;
+  assert.deepEqual(joining.session, joined.session);
+  assert.equal((await hostJoinedState).members.length, 2);
   assert.equal(joined.room.members.length, 2);
   assert.equal(joined.room.pending.length, 0);
   assertNoPrivateFields(joined.room);
   assert.notEqual(joined.session.token, created.session.token);
 
-  const guestState = nextEvent(guest, 'room:state');
-  const hostState = nextEvent(host, 'room:state', (room) => room.pending.length === 1);
-  await success(third, 'room:join', { code: created.room.code, nickname: '우사', character: 'usagi' });
-  assert.equal((await guestState).pending.length, 0);
-  assert.equal((await hostState).pending.length, 1);
+  const guestState = nextEvent(guest, 'room:state', (room) => room.members.length === 3);
+  const hostState = nextEvent(host, 'room:state', (room) => room.members.length === 3);
+  const thirdJoined = await joinRoom(host, third, created.room.code, { nickname: '우사', character: 'usagi' });
+  assert.equal(thirdJoined.room.members.length, 3);
+  assert.deepEqual((await guestState).pending, []);
+  assert.deepEqual((await hostState).pending, []);
 
   const received = [];
   guest.on('chat:message', (message) => received.push(message));
@@ -215,20 +212,26 @@ test('all host operations reject guests; kick revokes access and resume credenti
   const created = await createRoom(host);
   const joined = await joinRoom(host, guest, created.room.code);
   for (const [event, payload] of [
-    ['room:approve', { requestId: 'missing' }], ['room:reject', { requestId: 'missing' }],
     ['room:kick', { memberId: created.session.memberId }], ['room:lock', { locked: true }],
     ['room:rotate-code', {}], ['room:transfer', { memberId: joined.session.memberId }],
   ]) assert.equal((await request(guest, event, payload)).code, 'HOST_ONLY', event);
 
   const removed = nextEvent(guest, 'room:removed');
+  const rotated = nextEvent(host, 'room:state', (room) => room.code !== created.room.code);
   await success(host, 'room:kick', { memberId: joined.session.memberId });
   assert.ok((await removed).reason);
+  const newCode = (await rotated).code;
+  assert.match(newCode, /^[A-Z2-9]{8}$/u);
+  assert.equal((await success(host, 'room:resume', created.session)).room.code, newCode);
   assert.equal((await request(guest, 'chat:send', { clientId: randomUUID(), text: '다시' })).code, 'NOT_IN_ROOM');
   assert.equal((await request(guest, 'room:resume', joined.session)).code, 'INVALID_SESSION');
   const freshConnection = await f.client();
   assert.equal((await request(freshConnection, 'room:resume', joined.session)).code, 'INVALID_SESSION');
-  // A fresh entry request always needs host approval, including after a kick.
-  assert.equal((await success(freshConnection, 'room:join', { code: created.room.code, ...guestProfile })).pending, true);
+  assert.equal((await request(freshConnection, 'room:join', { code: created.room.code, ...guestProfile })).code, 'ROOM_NOT_FOUND');
+  // A kicked member cannot reuse the old code; the host may invite them with the new one.
+  const rejoined = await joinRoom(host, freshConnection, newCode);
+  assert.equal(rejoined.room.members.length, 2);
+  assert.notEqual(rejoined.session.token, joined.session.token);
 });
 
 test('host reconnect retains authority during grace; absence transfers it to the oldest online member', async (t) => {
@@ -278,16 +281,10 @@ test('room isolation, Unicode length validation, and bounded recent history', as
   assert.equal((await request(secondHost, 'room:kick', { memberId: first.session.memberId })).code, 'MEMBER_NOT_FOUND');
 });
 
-test('pending disconnect is cleaned; lock, code rotation, rejection, and explicit leave work', async (t) => {
+test('lock, code rotation, and explicit leave work with immediate entry', async (t) => {
   const f = await fixture(t);
   const host = await f.client();
-  const waiting = await f.client();
   const created = await createRoom(host);
-  const pending = await success(waiting, 'room:join', { code: created.room.code, ...guestProfile });
-  const cleared = nextEvent(host, 'room:state', (room) => room.pending.length === 0);
-  waiting.disconnect();
-  await cleared;
-  assert.equal((await request(host, 'room:approve', { requestId: pending.requestId })).code, 'REQUEST_NOT_FOUND');
   const guest = await f.client();
   await success(host, 'room:lock', { locked: true });
   assert.equal((await request(guest, 'room:join', { code: created.room.code, ...guestProfile })).code, 'ROOM_LOCKED');
@@ -295,10 +292,6 @@ test('pending disconnect is cleaned; lock, code rotation, rejection, and explici
   assert.notEqual(rotated.code, created.room.code);
   await success(host, 'room:lock', { locked: false });
   assert.equal((await request(guest, 'room:join', { code: created.room.code, ...guestProfile })).code, 'ROOM_NOT_FOUND');
-  const pendingAgain = await success(guest, 'room:join', { code: rotated.code, ...guestProfile });
-  const rejected = nextEvent(guest, 'join:rejected');
-  await success(host, 'room:reject', { requestId: pendingAgain.requestId });
-  assert.ok((await rejected).reason);
   const joined = await joinRoom(host, guest, rotated.code);
   const transferred = nextEvent(guest, 'room:state', (room) => room.hostId === joined.session.memberId);
   await success(host, 'room:leave');
@@ -374,16 +367,14 @@ test('offline reservations expire in active rooms; a timely reconnect cancels ex
   assert.equal((await request(expiredReplacement, 'room:resume', replacementJoined.session)).code, 'INVALID_SESSION');
 });
 
-test('empty rooms expire and pending requests time out', async (t) => {
-  const f = await fixture(t, { emptyRoomTtlMs: 70, pendingTtlMs: 40 });
+test('empty rooms expire and reject entry with an old code', async (t) => {
+  const f = await fixture(t, { emptyRoomTtlMs: 70 });
   const host = await f.client();
   const guest = await f.client();
   const created = await createRoom(host);
-  const rejected = nextEvent(guest, 'join:rejected');
-  await success(guest, 'room:join', { code: created.room.code, ...guestProfile });
-  assert.match((await rejected).reason, /시간/u);
   host.disconnect();
   await new Promise((resolve) => setTimeout(resolve, 100));
+  assert.equal((await request(guest, 'room:join', { code: created.room.code, ...guestProfile })).code, 'ROOM_NOT_FOUND');
   assert.equal((await request(guest, 'room:resume', created.session)).code, 'INVALID_SESSION');
   assert.deepEqual(await (await fetch(`${f.url}/health`)).json(), { ok: true, rooms: 0 });
 });

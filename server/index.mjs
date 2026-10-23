@@ -42,7 +42,7 @@ function sameToken(left, right) {
 /**
  * In-memory, single-process room server. No persistence or horizontal scaling.
  * Options: hostGraceMs (60s), memberReconnectTtlMs (5m in active rooms),
- * emptyRoomTtlMs (10m), pendingTtlMs (2m),
+ * emptyRoomTtlMs (10m),
  * maxMembers (8), maxMessages (100), maxTextLength (200), maxRooms (1000),
  * allowedOrigins (array), staticDir (directory or false), and rateLimits.
  * Returns { httpServer, io, listen(port = 47831, host = '127.0.0.1'), close() }.
@@ -52,7 +52,6 @@ export function createRoomServer(options = {}) {
   const hostGraceMs = options.hostGraceMs ?? 60_000;
   const memberReconnectTtlMs = options.memberReconnectTtlMs ?? 300_000;
   const emptyRoomTtlMs = options.emptyRoomTtlMs ?? 600_000;
-  const pendingTtlMs = options.pendingTtlMs ?? 120_000;
   const maxMembers = options.maxMembers ?? 8;
   const maxMessages = options.maxMessages ?? 100;
   const maxTextLength = options.maxTextLength ?? 200;
@@ -118,20 +117,19 @@ export function createRoomServer(options = {}) {
     id: member.id, nickname: member.nickname, character: characterFor(member.character, viewer),
     color: member.color, online: Boolean(member.socketId), joinedAt: member.joinedAt,
   });
-  const publicRequest = (request, viewer) => ({ id: request.id, nickname: request.nickname, character: characterFor(request.character, viewer), requestedAt: request.requestedAt });
   const messageFor = (message, viewer) => ({ ...message, character: characterFor(message.character, viewer) });
   const sessionFor = (room, member) => ({ memberId: member.id, token: member.token, roomId: room.id });
-  const snapshot = (room, viewerId, viewer) => ({
+  const snapshot = (room, viewer) => ({
     id: room.id, code: room.code, name: room.name, hostId: room.hostId, locked: room.locked,
     members: [...room.members.values()].map((member) => publicMember(member, viewer)),
     messages: room.messages.map((message) => messageFor(message, viewer)),
-    pending: viewerId === room.hostId ? [...room.pending.values()].map((request) => publicRequest(request, viewer)) : [],
+    pending: [], // Keep the field for already-installed apps.
   });
   function broadcastState(room) {
     if (closing) return;
     for (const member of room.members.values()) {
       const viewer = member.socketId && io.sockets.sockets.get(member.socketId);
-      viewer?.emit('room:state', snapshot(room, member.id, viewer));
+      viewer?.emit('room:state', snapshot(room, viewer));
     }
   }
   function memberContext(socket, hostOnly = false) {
@@ -144,12 +142,18 @@ export function createRoomServer(options = {}) {
   }
   function assertAvailable(socket) {
     if (socket.data.membership) fail('ALREADY_IN_ROOM', '지금 방에서 나간 다음 다른 방에 들어갈 수 있어.');
-    if (socket.data.pending) fail('ALREADY_PENDING', '입장 요청을 기다리고 있어. 취소한 다음 다시 해 줘.');
   }
   function newCode() {
     let code;
     do { code = Array.from({ length: 8 }, () => CODE_ALPHABET[randomInt(CODE_ALPHABET.length)]).join(''); } while (codes.has(code));
     return code;
+  }
+  function rotateCode(room) {
+    const replacement = newCode();
+    codes.delete(room.code);
+    room.code = replacement;
+    codes.set(replacement, room.id);
+    return replacement;
   }
   function newMember(room, socket, profile) {
     const usedColors = new Set([...room.members.values()].map((member) => member.color));
@@ -162,20 +166,9 @@ export function createRoomServer(options = {}) {
     socket.data.membership = { roomId: room.id, memberId: member.id };
     return member;
   }
-  function removePending(room, requestId, reason) {
-    const request = room.pending.get(requestId);
-    if (!request) return;
-    clearTimeout(request.timer);
-    room.pending.delete(requestId);
-    const socket = io.sockets.sockets.get(request.socketId);
-    if (socket?.data.pending?.requestId === requestId) delete socket.data.pending;
-    if (reason) socket?.emit('join:rejected', { reason });
-    return request;
-  }
   function destroyRoom(room) {
     clearTimeout(room.hostTimer);
     clearTimeout(room.emptyTimer);
-    for (const request of [...room.pending.values()]) removePending(room, request.id, '방이 닫혔어. 새 초대를 받아 줘.');
     for (const member of room.members.values()) {
       clearTimeout(member.reconnectTimer);
       const socket = io.sockets.sockets.get(member.socketId);
@@ -263,12 +256,12 @@ export function createRoomServer(options = {}) {
       if (typeof name !== 'string' || !name.trim() || countCharacters(name.trim()) > 40 || /[\u0000-\u001f\u007f]/u.test(name)) fail('INVALID_NAME', '방 이름은 줄바꿈 없이 1~40자로 입력해 줘.');
       limit('create', socket.handshake.address);
       if (rooms.size >= maxRooms) fail('SERVER_FULL', '지금 방이 너무 많아. 잠시 뒤 다시 만들어 줘.');
-      const room = { id: randomUUID(), code: newCode(), name: name.trim(), hostId: '', locked: false, members: new Map(), pending: new Map(), messages: [], hostTimer: null, emptyTimer: null };
+      const room = { id: randomUUID(), code: newCode(), name: name.trim(), hostId: '', locked: false, members: new Map(), messages: [], hostTimer: null, emptyTimer: null };
       rooms.set(room.id, room);
       codes.set(room.code, room.id);
       const member = newMember(room, socket, profile);
       room.hostId = member.id;
-      return { room: snapshot(room, member.id, socket), session: sessionFor(room, member) };
+      return { room: snapshot(room, socket), session: sessionFor(room, member) };
     });
 
     handle('room:join', (payload) => {
@@ -282,20 +275,16 @@ export function createRoomServer(options = {}) {
       if (room.locked) fail('ROOM_LOCKED', '방장이 입장을 잠가 뒀어.');
       if (room.members.size >= maxMembers) fail('ROOM_FULL', `방에는 ${maxMembers}명까지 함께 있을 수 있어.`);
       if (![...room.members.values()].some((member) => member.socketId)) fail('HOST_UNAVAILABLE', '지금 방에 접속한 친구가 없어. 잠시 뒤 다시 들어와 줘.');
-      if (room.pending.size >= 32) fail('TOO_MANY_PENDING', '입장을 기다리는 친구가 많아. 잠시 뒤 다시 해 줘.');
-      const request = { id: randomUUID(), socketId: socket.id, ...profile, requestedAt: Date.now(), timer: null };
-      request.timer = setTimeout(() => {
-        if (rooms.has(room.id)) { removePending(room, request.id, '입장 요청 시간이 지났어. 다시 요청해 줘.'); broadcastState(room); }
-      }, pendingTtlMs);
-      request.timer.unref();
-      room.pending.set(request.id, request);
-      socket.data.pending = { roomId: room.id, requestId: request.id };
+      const member = newMember(room, socket, profile);
+      const joined = { room: snapshot(room, socket), session: sessionFor(room, member) };
+      // Older installed apps enter only after this event. Emit it before the ACK
+      // so their pending state cannot overwrite the accepted session.
+      socket.emit('join:approved', joined);
       broadcastState(room);
-      return { pending: true, requestId: request.id };
+      return joined;
     });
 
     handle('room:resume', (payload) => {
-      if (socket.data.pending) fail('ALREADY_PENDING', '입장 요청을 취소한 다음 다시 연결해 줘.');
       const room = typeof payload.roomId === 'string' ? rooms.get(payload.roomId) : null;
       const member = room && [...room.members.values()].find((candidate) => sameToken(candidate.token, payload.token));
       if (!room || !member) fail('INVALID_SESSION', '이전 입장 정보가 만료됐어. 새 초대로 다시 들어와 줘.');
@@ -318,38 +307,10 @@ export function createRoomServer(options = {}) {
       electHost(room);
       updateEmptyTimer(room);
       broadcastState(room);
-      return { room: snapshot(room, member.id, socket), session: sessionFor(room, member) };
-    });
-
-    handle('room:approve', ({ requestId }) => {
-      const { room } = memberContext(socket, true);
-      expireDisconnectedMembers(room);
-      const request = room.pending.get(requestId);
-      if (!request) fail('REQUEST_NOT_FOUND', '이미 처리되었거나 취소된 입장 요청이야.');
-      const guest = io.sockets.sockets.get(request.socketId);
-      if (!guest?.connected) { removePending(room, requestId); broadcastState(room); fail('REQUEST_NOT_FOUND', '친구의 연결이 끊겼어. 다시 요청해 달라고 해 줘.'); }
-      if (room.members.size >= maxMembers) fail('ROOM_FULL', `방에는 ${maxMembers}명까지 함께 있을 수 있어.`);
-      removePending(room, requestId);
-      const member = newMember(room, guest, { nickname: request.nickname, character: request.character });
-      guest.emit('join:approved', { room: snapshot(room, member.id, guest), session: sessionFor(room, member) });
-      broadcastState(room);
-      return {};
-    });
-
-    handle('room:reject', ({ requestId }) => {
-      const { room } = memberContext(socket, true);
-      if (!room.pending.has(requestId)) fail('REQUEST_NOT_FOUND', '이미 처리되었거나 취소된 입장 요청이야.');
-      removePending(room, requestId, '방장이 이번 입장 요청을 받지 않았어.');
-      broadcastState(room);
-      return {};
+      return { room: snapshot(room, socket), session: sessionFor(room, member) };
     });
 
     handle('room:leave', () => {
-      if (socket.data.pending) {
-        const room = rooms.get(socket.data.pending.roomId);
-        if (room) { removePending(room, socket.data.pending.requestId); broadcastState(room); }
-        else delete socket.data.pending;
-      }
       if (socket.data.membership) {
         const { room, member } = memberContext(socket);
         removeMember(room, member);
@@ -362,8 +323,10 @@ export function createRoomServer(options = {}) {
       const target = room.members.get(memberId);
       if (!target) fail('MEMBER_NOT_FOUND', '이미 방에서 나간 친구야.');
       if (memberId === room.hostId) fail('CANNOT_KICK_HOST', '방장은 나가기 버튼을 이용해 줘.');
+      // Without approval, an expelled friend could reuse the old invitation.
+      rotateCode(room);
       removeMember(room, target, '방장이 방에서 내보냈어.');
-      return {};
+      return { code: room.code };
     });
 
     handle('room:lock', ({ locked }) => {
@@ -376,10 +339,7 @@ export function createRoomServer(options = {}) {
 
     handle('room:rotate-code', () => {
       const { room } = memberContext(socket, true);
-      const replacement = newCode();
-      codes.delete(room.code);
-      room.code = replacement;
-      codes.set(room.code, room.id);
+      rotateCode(room);
       broadcastState(room);
       return { code: room.code };
     });
@@ -423,10 +383,6 @@ export function createRoomServer(options = {}) {
     });
 
     socket.on('disconnect', () => {
-      if (socket.data.pending) {
-        const room = rooms.get(socket.data.pending.roomId);
-        if (room) { removePending(room, socket.data.pending.requestId); broadcastState(room); }
-      }
       const membership = socket.data.membership;
       const room = membership && rooms.get(membership.roomId);
       const member = room?.members.get(membership.memberId);
@@ -465,7 +421,6 @@ export function createRoomServer(options = {}) {
       for (const room of rooms.values()) {
         clearTimeout(room.hostTimer);
         clearTimeout(room.emptyTimer);
-        for (const request of room.pending.values()) clearTimeout(request.timer);
         for (const member of room.members.values()) clearTimeout(member.reconnectTimer);
       }
       await new Promise((resolveClose) => io.close(() => resolveClose()));

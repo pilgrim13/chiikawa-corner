@@ -105,10 +105,11 @@ test('resume ACK cannot overwrite newer events in the same polling response', {
       subtest.after(() => { host.disconnect(); guest.disconnect(); });
       await Promise.all([once(host, 'connect'), once(guest, 'connect')]);
       const created = await request(host, 'room:create', { nickname: '방장', character: 'momonga' });
-      const pending = await request(guest, 'room:join', { code: created.room.code, nickname: '친구', character: 'hachiware' });
       const approved = once(guest, 'join:approved');
-      await request(host, 'room:approve', { requestId: pending.requestId });
+      const joinedAck = await request(guest, 'room:join', { code: created.room.code, nickname: '친구', character: 'hachiware' });
       const joined = await approved;
+      assert.deepEqual(joinedAck.session, joined.session);
+      assert.deepEqual(joinedAck.room.pending, []);
       guest.disconnect();
 
       let injected = false;

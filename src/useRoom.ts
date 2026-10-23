@@ -145,7 +145,20 @@ export function useRoom(endpoint: string) {
   }, []);
   const create = (profile: Profile) => perform(async () => { const joined = await request<Joined>('room:create', profile); acceptJoined(joined, endpoint); return joined; });
   const join = (code: string, profile: Profile) => perform(async () => {
-    await request<{ pending: true; requestId: string }>('room:join', { code, ...profile }); if (!sessionRef.current) { setPending(true); pendingRef.current = true; } return true;
+    let joined: Joined | { pending: true; requestId: string };
+    try { joined = await request<Joined | { pending: true; requestId: string }>('room:join', { code, ...profile }); }
+    catch (cause) {
+      // The compatibility event may have already admitted us even if its ACK was lost.
+      if (sessionRef.current) return true;
+      throw cause;
+    }
+    if ('room' in joined && 'session' in joined) {
+      if (!sessionRef.current) acceptJoined(joined, endpoint);
+      return true;
+    }
+    // A manually configured older relay can still require host approval.
+    if (!sessionRef.current) { setPending(true); pendingRef.current = true; }
+    return true;
   });
   const leave = () => perform(async () => {
     const socket = socketRef.current;
