@@ -14,7 +14,7 @@ Mac·Windows 바탕화면 또는 브라우저의 작은 정원에서 친구들�
 
 <sub>macOS 13 이상 / Windows 10·11 x64 / 브라우저 · 회원가입 없이</sub>
 
-<sub>브라우저와 채팅 서버에는 0.4.0 기능을 적용했어요. Mac·Windows 다운로드와 앱 안의 업데이트는 아직 0.3.0이며, 0.4.0 설치본·배포 서명을 준비 중이에요.</sub>
+<sub>브라우저와 채팅 서버에는 0.4.0 기능을 적용했어요. Mac·Windows 0.4.0 설치본도 검증했지만, 공개 다운로드와 앱 안의 업데이트는 배포 서명 전이라 아직 0.3.0이에요.</sub>
 
 [새 소식](https://github.com/pilgrim13/chiikawa-corner/releases) · [불편한 점 알려주기](https://github.com/pilgrim13/chiikawa-corner/issues)
 
