@@ -1,5 +1,5 @@
 export type CharacterId = 'chiikawa' | 'hachiware' | 'usagi' | 'momonga' | 'kurimanju' | 'shisa' | 'rakko' | 'furuhonya';
-export type Member = { id: string; nickname: string; character: CharacterId; color: string; online: boolean; joinedAt: number };
+export type Member = { id: string; nickname: string; character: CharacterId; color: string; online: boolean; joinedAt: number; lastChatAt?: number; hasChatted?: boolean };
 export type ChatMessage = { id: string; memberId: string; nickname: string; character: CharacterId; text: string; sentAt: number; kind?: 'chat' | 'system' };
 export type JoinRequest = { id: string; nickname: string; character: CharacterId; requestedAt: number };
 export type RoomSnapshot = { id: string; code: string; name: string; hostId: string; locked: boolean; members: Member[]; messages: ChatMessage[]; pending: JoinRequest[] };

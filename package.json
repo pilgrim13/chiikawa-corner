@@ -1,6 +1,6 @@
 {
   "name": "chiikawa-corner",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "private": true,
   "description": "친구들이 머무는 작은 바탕화면, 치이카와 모퉁이",
   "main": "electron/main.cjs",
@@ -10,6 +10,7 @@
     "server": "node server/index.mjs",
     "typecheck": "tsc --noEmit",
     "build": "npm run typecheck && vite build",
+    "deploy:web": "node scripts/deploy-web.mjs",
     "start": "electron .",
     "test": "node --test tests/*.mjs scripts/publish-update.test.mjs",
     "build:updater": "clang -arch arm64 -arch x86_64 -mmacosx-version-min=13.0 scripts/swap-bundles.c -o electron/swap-bundles && codesign --force --sign - electron/swap-bundles",
