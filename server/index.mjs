@@ -193,9 +193,13 @@ export function createRoomServer(options = {}) {
       })) };
       mkdirSync(dirname(stateFile), { recursive: true, mode: 0o700 });
       temporary = `${stateFile}.${randomUUID()}.tmp`;
-      writeFileSync(temporary, JSON.stringify(data), { encoding: 'utf8', mode: 0o600, flag: 'wx' });
-      const fd = openSync(temporary, 'r');
-      try { fsyncSync(fd); } finally { closeSync(fd); }
+      // FlushFileBuffers on Windows requires a writable handle. Keep the
+      // exclusive write handle open through fsync instead of reopening read-only.
+      const fd = openSync(temporary, 'wx', 0o600);
+      try {
+        writeFileSync(fd, JSON.stringify(data), 'utf8');
+        fsyncSync(fd);
+      } finally { closeSync(fd); }
       renameSync(temporary, stateFile);
       temporary = null;
       // Windows cannot reliably open directories as file handles. On POSIX,
@@ -213,6 +217,7 @@ export function createRoomServer(options = {}) {
       }
     } catch (error) {
       if (temporary) try { unlinkSync(temporary); } catch { /* File may already have been renamed. */ }
+      console.error('Room state persistence failed', { code: error?.code ?? 'UNKNOWN', syscall: error?.syscall ?? 'unknown' });
       storageError = true;
       for (const room of rooms.values()) {
         clearTimeout(room.hostTimer);
